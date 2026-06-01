@@ -11,19 +11,34 @@ A complete pipeline to fetch NSE stock data, enrich with fundamentals, compute t
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Features](#features)
-- [Installation](#installation)
-- [Data Flow (Correct Order)](#data-flow-correct-order)
-- [Quick Start](#quick-start)
-- [Detailed Usage](#detailed-usage)
-- [Configuration](#configuration)
-- [Scoring System](#scoring-system)
-- [Technical Indicators & Fundamentals](#technical-indicators--fundamentals)
-- [Command Line Reference](#command-line-reference)
-- [Example Walkthrough](#example-walkthrough)
-- [License](#license)
-- [Author](#author)
+- [stonks - Stock Analysis Tool](#stonks---stock-analysis-tool)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Features](#features)
+  - [Installation](#installation)
+    - [Kite MCP Requirements](#kite-mcp-requirements)
+  - [Data Flow (Correct Order)](#data-flow-correct-order)
+  - [Quick Start](#quick-start)
+  - [Detailed Usage](#detailed-usage)
+    - [1. Prepare a basic job file](#1-prepare-a-basic-job-file)
+    - [2. Enrich with fundamentals and NSE metadata (`enrich.py`)](#2-enrich-with-fundamentals-and-nse-metadata-enrichpy)
+    - [3. Fetch historical candles (`kite.py`)](#3-fetch-historical-candles-kitepy)
+    - [4. Update only fundamentals in existing candle files (`kite.py --update-metadata-only`)](#4-update-only-fundamentals-in-existing-candle-files-kitepy---update-metadata-only)
+    - [5. Analyse and rank (`stonks.py`)](#5-analyse-and-rank-stonkspy)
+    - [Daily \& Weekly Routine](#daily--weekly-routine)
+  - [Configuration](#configuration)
+    - [NSE constituent CSV files](#nse-constituent-csv-files)
+    - [Trading holidays](#trading-holidays)
+    - [Market hours](#market-hours)
+  - [Scoring System](#scoring-system)
+  - [Technical Indicators \& Fundamentals](#technical-indicators--fundamentals)
+  - [Command Line Reference](#command-line-reference)
+    - [`enrich.py`](#enrichpy)
+    - [`kite.py`](#kitepy)
+    - [`stonks.py`](#stonkspy)
+  - [Example Walkthrough](#example-walkthrough)
+  - [License](#license)
+  - [Author](#author)
 
 ---
 
@@ -35,11 +50,10 @@ A complete pipeline to fetch NSE stock data, enrich with fundamentals, compute t
 2. **Data Fetching** - Downloads daily OHLCV candles via Kite Connect (MCP) and copies the enriched metadata into each candle file.
 3. **Analysis** - Computes technical indicators, fundamental scores, and cross‑sectional rankings.
 
-The pipeline is designed to run **once** for fundamentals (they are stored in the job file) and **daily** for candle updates.  
+The pipeline is designed to run **once** for fundamentals (they are stored in the job file) and **daily** for candle updates.
 When you refresh fundamentals (e.g., weekly), you can **update only the metadata** in existing candle files without re‑downloading candles.
 
 ---
-
 
 ## Features
 
@@ -58,7 +72,7 @@ When you refresh fundamentals (e.g., weekly), you can **update only the metadata
 
 ```bash
 # Clone the repository
-git clone https://github.com/edmund-carvalho/stonks.git
+git clone https://github.com/Edmund-Carvalho/stonks.git
 cd stonks
 
 # (Optional) Create a virtual environment
@@ -75,12 +89,12 @@ pip install -r requirements.txt
 `kite.py` fetches candle data via the **Kite MCP** server (`https://mcp.kite.trade/mcp`). To use it you need:
 
 1. **A Zerodha account** - Kite MCP authenticates through your existing Zerodha credentials via a browser-based two‑factor login flow. No separate API key is required.
-  For more details see :
-    [kite MCP Github ](https://github.com/zerodha/kite-mcp-server)
-    [Zerodha's Kite MCP setup guide](https://zerodha.com/z-connect/featured/connect-your-zerodha-account-to-ai-assistants-with-kite-mcp)
+   For more details see:
+   - [Kite MCP GitHub](https://github.com/zerodha/kite-mcp-server)
+   - [Zerodha's Kite MCP setup guide](https://zerodha.com/z-connect/featured/connect-your-zerodha-account-to-ai-assistants-with-kite-mcp)
 
-  We only use **`get_historical_data`** tool for now and nothing else. Future will support only tools with get_* to avoid accidents.
-> **Security note**: Your Zerodha credentials never pass through the stonks app. Authentication is handled externally via Kite's secure OAuth flow, and all MCP operations are read‑only by default 
+   We only use the **`get_historical_data`** tool for now and nothing else. Future versions will support only `get_*` tools to avoid accidents.
+> **Security note**: Your Zerodha credentials never pass through the stonks app. Authentication is handled externally via Kite's secure OAuth flow, and all MCP operations are read‑only by default.
 
 ---
 
@@ -110,15 +124,16 @@ basic job file (dailyJobs.json)
    stonks.py         ← analysis & ranking
 ```
 
-**Key point**: `enrich.py` only updates the **job file** - it never touches candle files.  
-`kite.py` (with or without `--update-metadata-only`) propagates metadata from the job file into candle files.  
+**Key point**: `enrich.py` only updates the **job file** - it never touches candle files.
+`kite.py` (with or without `--update-metadata-only`) propagates metadata from the job file into candle files.
 Thus you can refresh fundamentals without re‑downloading historical candles.
 
 ---
 
 ## Quick Start
 
-### 1. Create a file named `mywatchlist.json` with the following content:
+**1. Create a file named `mywatchlist.json` with the following content:**
+
 ```json
 {
   "default_days": 500,
@@ -130,16 +145,20 @@ Thus you can refresh fundamentals without re‑downloading historical candles.
 }
 ```
 
-### 2. Enrich with fundamentals and NSE metadata
+**2. Enrich with fundamentals and NSE metadata**
+
 ```bash
 python enrich.py mywatchlist.json enriched.json
 ```
 
-### 3. Fetch historical candles (interactive login)
+**3. Fetch historical candles (interactive login)**
+
 ```bash
 python kite.py --job enriched.json --output-dir candles --days 500
 ```
-### 4. Analyse and rank
+
+**4. Analyse and rank**
+
 ```bash
 python stonks.py candles/ -r --tech-weight 0.85 --fund-weight 0.15
 ```
@@ -174,7 +193,7 @@ python enrich.py input_job.json output_job.json
 - Fetches **fresh** fundamentals from Yahoo Finance for each symbol (no caching by default).
 - Saves incrementally to `output_job.json` after each symbol (crash‑resistant).
 
-> **Important**: This script does **not** require existing candle data. It only modifies the job file. Run it once when you create a watchlist, and re‑run periodically (e.g., weekly) to refresh fundamentals.
+> **Important**: This script Carvalhos **not** require existing candle data. It only modifies the job file. Run it once when you create a watchlist, and re‑run periodically (e.g., weekly) to refresh fundamentals.
 
 ### 3. Fetch historical candles (`kite.py`)
 
@@ -190,7 +209,7 @@ python kite.py --job enriched.json --output-dir candles [--days N] [--update] [-
 
 **Options**:
 
-- `--days` : Number of trading days to fetch (default from job’s `default_days` or 2000).
+- `--days` : Number of trading days to fetch (default from job's `default_days` or 2000).
 - `--update` : Fetch only missing days since the last saved candle (much faster).
 - `--force-download` : Re‑download everything, ignoring existing files.
 - `--delay` : Seconds between API calls (default 1.0 - respect rate limits).
@@ -199,7 +218,7 @@ The output file structure (e.g., `candles/RELIANCE.json`):
 
 ```json
 {
-  "metadata": { ... },   // full metadata from enriched job
+  "metadata": { ... },
   "data": [
     { "date": "2025-01-02 00:00:00", "open": ..., "high": ..., ... },
     ...
@@ -209,7 +228,7 @@ The output file structure (e.g., `candles/RELIANCE.json`):
 
 ### 4. Update only fundamentals in existing candle files (`kite.py --update-metadata-only`)
 
-After you re‑run `enrich.py` to refresh fundamentals (e.g., new P/E ratios, analyst ratings), you have an **updated job file** with fresh `metadata.fundamentals`.  
+After you re‑run `enrich.py` to refresh fundamentals (e.g., new P/E ratios, analyst ratings), you have an **updated job file** with fresh `metadata.fundamentals`.
 Instead of re‑downloading all candles, you can **update only the metadata** in your existing candle files using:
 
 ```bash
@@ -219,10 +238,10 @@ python kite.py --job updated_enriched.json --output-dir candles --update-metadat
 - Reads the **new enriched job file**.
 - For each symbol, opens the existing candle JSON file in `--output-dir`.
 - Replaces its `metadata` with the latest metadata from the job file.
-- **Does not** call the Kite API or modify candle `data`.
+- **Carvalhos not** call the Kite API or modify candle `data`.
 - Saves the file back.
 
-This is extremely fast (no network delays) and preserves all historical price data.  
+This is extremely fast (no network delays) and preserves all historical price data.
 After this step, `stonks.py` will see the updated fundamentals when you analyse.
 
 ### 5. Analyse and rank (`stonks.py`)
@@ -244,16 +263,18 @@ The two weights **must sum to 1.0** (the script normalises them internally).
 
 ### Daily & Weekly Routine
 
-- **Daily** (to get new candles):
-  ```bash
-  python kite.py --job enriched.json --output-dir candles --update
-  ```
+**Daily** (to get new candles):
 
-- **Weekly** (to refresh fundamentals, then update metadata in candle files):
-  ```bash
-  python enrich.py dailyJobs.json enriched.json   # fresh Yahoo data
-  python kite.py --job enriched.json --output-dir candles --update-metadata-only
-  ```
+```bash
+python kite.py --job enriched.json --output-dir candles --update
+```
+
+**Weekly** (to refresh fundamentals, then update metadata in candle files):
+
+```bash
+python enrich.py dailyJobs.json enriched.json   # fresh Yahoo data
+python kite.py --job enriched.json --output-dir candles --update-metadata-only
+```
 
 No need to re‑fetch candles - the `--update-metadata-only` flag propagates the new fundamentals instantly.
 
@@ -306,7 +327,7 @@ The ranking engine uses a **two‑pass cross‑sectional normalisation**:
 
 The default factor weights and fundamental sub‑weights are documented inside `stonks.py`. You can override them via the API or by editing the script.
 
-For a detailed explanation of each factor, see the **Scoring System** section in the source code comments or the original README (available on GitHub).
+For a detailed explanation of each factor, see the **Scoring System** section in the source code comments.
 
 ---
 
@@ -327,15 +348,19 @@ Each indicator/fundamental provides a `classify()` method returning a verdict, a
 ## Command Line Reference
 
 ### `enrich.py`
+
 ```
 usage: python enrich.py input.json output.json
 ```
+
 Adds NSE metadata and Yahoo fundamentals to a job file.
 
 ### `kite.py`
+
 ```
 usage: python kite.py --job JOB_FILE [--output-dir DIR] [--days N] [--update] [--force-download] [--update-metadata-only] [--delay SEC]
 ```
+
 - `--job` : enriched job file (required).
 - `--output-dir` : directory for candle JSON files (default `.`).
 - `--days` : number of trading days to fetch.
@@ -345,9 +370,11 @@ usage: python kite.py --job JOB_FILE [--output-dir DIR] [--days N] [--update] [-
 - `--delay` : seconds between API calls (default 1.0).
 
 ### `stonks.py`
+
 ```
 usage: python stonks.py PATH [-r] [--tech-weight T] [--fund-weight F]
 ```
+
 - `PATH` : directory of candle JSONs or a single JSON file.
 - `-r` : show cross‑sectional ranking.
 - `--tech-weight` : weight for technical composite (default 0.85).
@@ -359,7 +386,7 @@ usage: python stonks.py PATH [-r] [--tech-weight T] [--fund-weight F]
 
 Below is a complete run using a sample watchlist (`sampleBasicJob.json`) containing `RELIANCE`, `HDFCBANK`, `TATACONSUM`, `ITC`, `INDIA VIX`, and `NIFTY 50`.
 
-### 1. Enrich the job file
+**1. Enrich the job file**
 
 ```bash
 python enrich.py sampleBasicJob.json sampleEnrichedJob.json
@@ -388,13 +415,14 @@ Output:
 ✅ Full enrichment complete. Output: sampleEnrichedJob.json
 ```
 
-### 2. Fetch historical candles (interactive Kite login)
+**2. Fetch historical candles (interactive Kite login)**
 
 ```bash
 python kite.py --job sampleEnrichedJob.json --output-dir candles --days 2000
 ```
 
 After logging in the browser and pressing Enter, the candles are downloaded:
+
 ```
 [1/6] RELIANCE...
 [2/6] HDFCBANK...
@@ -404,13 +432,13 @@ After logging in the browser and pressing Enter, the candles are downloaded:
 [6/6] NIFTY 50...
 ```
 
-### 3. Show summary tables (no ranking)
+**3. Show summary tables (no ranking)**
 
 ```bash
 python stonks.py candles/
 ```
 
-This produces two tables. The technical indicators table (truncated):
+This produces two tables — technical indicators and fundamentals — for each stock in the watchlist.
 
 ```
 -----------+-----------+-----------+---------+-----------+-------------+-----------+-----------+-----------+-----------+-----------+---------+--------+--------+--------+---------+----------+-------
@@ -442,23 +470,25 @@ NIFTY 50   | N/A          | N/A         | N/A       | N/A  | N/A   | N/A        
 ...
 ```
 
-### 4. Cross‑sectional ranking
+**4. Cross‑sectional ranking**
 
 ```bash
 python stonks.py candles/ -r --tech-weight 0.85 --fund-weight 0.15
 ```
-Some arbitrary ranking based on your selection of technical/fundamental indicators and respective scoring weights set in code.
-![Screenshot](docs/screenshots/ranking.png)
 
-### 5. Full report for a single stock
+Some arbitrary ranking based on your selection of technical/fundamental indicators and respective scoring weights set in code.
+
+![Ranking screenshot](docs/screenshots/ranking.png)
+
+**5. Full report for a single stock**
 
 ```bash
 python stonks.py candles/HDFCBANK.json
 ```
 
-This prints a detailed report with business summary, technical indicators (with raw values and verdicts), and fundamental analysis (with scores). Example excerpt:
+This prints a detailed report with business summary, technical indicators (with raw values and verdicts), and fundamental analysis (with scores).
 
-![Screenshot](docs/screenshots/individual_stock_analysis.png)
+![Individual stock analysis](docs/screenshots/individual_stock_analysis.png)
 
 ---
 
@@ -475,6 +505,6 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 ## Author
 
 **Edmund Carvalho**  
-[GitHub](https://github.com/edmund-carvalho)
+[GitHub](https://github.com/Edmund-Carvalho)
 
 *For questions or contributions, please open an issue on the repository.*
