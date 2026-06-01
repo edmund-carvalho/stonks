@@ -340,11 +340,11 @@ def update_metadata_only(tasks, output_dir):
         symbol = item['symbol']
         metadata = item['metadata']
         if metadata is None:
-            print(f"[SKIP] {symbol} – no metadata in job")
+            print(f"[SKIP] {symbol} - no metadata in job")
             continue
         filename = os.path.join(output_dir, f"{symbol}.json")
         if not os.path.exists(filename):
-            print(f"[SKIP] {symbol} – file not found")
+            print(f"[SKIP] {symbol} - file not found")
             continue
         try:
             with open(filename, 'r') as f:
@@ -355,7 +355,7 @@ def update_metadata_only(tasks, output_dir):
             print(f"[OK] {symbol} metadata updated")
             updated += 1
         except Exception as e:
-            print(f"[FAIL] {symbol} – {e}")
+            print(f"[FAIL] {symbol} - {e}")
     print(f"Updated metadata for {updated} symbol(s).")
 
 
@@ -365,7 +365,7 @@ def update_metadata_only(tasks, output_dir):
 async def run_app():
     args = parse_user_args()
 
-    # Handle metadata‑only mode early – no Kite connection needed
+    # Handle metadata‑only mode early - no Kite connection needed
     if args.update_metadata_only:
         if not args.job:
             print("Error: --update-metadata-only requires a --job file to get metadata.")

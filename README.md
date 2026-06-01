@@ -1,8 +1,13 @@
-# stonks – Stock Analysis Tool
+# stonks - Stock Analysis Tool
 
 A complete pipeline to fetch NSE stock data, enrich with fundamentals, compute technical indicators, and rank stocks using a cross‑sectional scoring system.
 
 ---
+
+> [!WARNING]
+> This project is for **educational and informational purposes only**. It is not financial advice.
+> The authors are not responsible for any financial losses incurred through the use of this software.
+> Always do your own research before making investment decisions.
 
 ## Table of Contents
 
@@ -26,14 +31,15 @@ A complete pipeline to fetch NSE stock data, enrich with fundamentals, compute t
 
 `stonks` is a three‑stage tool for Indian (NSE) equity analysis:
 
-1. **Enrichment** – Adds market cap, industry, sector, dependencies, and Yahoo Finance fundamentals to a watchlist (job file).
-2. **Data Fetching** – Downloads daily OHLCV candles via Kite Connect (MCP) and copies the enriched metadata into each candle file.
-3. **Analysis** – Computes technical indicators, fundamental scores, and cross‑sectional rankings.
+1. **Enrichment** - Adds market cap, industry, sector, dependencies, and Yahoo Finance fundamentals to a watchlist (job file).
+2. **Data Fetching** - Downloads daily OHLCV candles via Kite Connect (MCP) and copies the enriched metadata into each candle file.
+3. **Analysis** - Computes technical indicators, fundamental scores, and cross‑sectional rankings.
 
 The pipeline is designed to run **once** for fundamentals (they are stored in the job file) and **daily** for candle updates.  
 When you refresh fundamentals (e.g., weekly), you can **update only the metadata** in existing candle files without re‑downloading candles.
 
 ---
+
 
 ## Features
 
@@ -64,7 +70,17 @@ venv\Scripts\activate      # Windows
 pip install -r requirements.txt
 ```
 
-**Note**: `kite.py` requires a Kite Connect API key and uses an interactive browser login (MCP). For unattended operation, modify the script to use an API key directly.
+### Kite MCP Requirements
+
+`kite.py` fetches candle data via the **Kite MCP** server (`https://mcp.kite.trade/mcp`). To use it you need:
+
+1. **A Zerodha account** - Kite MCP authenticates through your existing Zerodha credentials via a browser-based two‑factor login flow. No separate API key is required.
+  For more details see :
+    [kite MCP Github ](https://github.com/zerodha/kite-mcp-server)
+    [Zerodha's Kite MCP setup guide](https://zerodha.com/z-connect/featured/connect-your-zerodha-account-to-ai-assistants-with-kite-mcp)
+
+  We only use **`get_historical_data`** tool for now and nothing else. Future will support only tools with get_* to avoid accidents.
+> **Security note**: Your Zerodha credentials never pass through the stonks app. Authentication is handled externally via Kite's secure OAuth flow, and all MCP operations are read‑only by default 
 
 ---
 
@@ -94,7 +110,7 @@ basic job file (dailyJobs.json)
    stonks.py         ← analysis & ranking
 ```
 
-**Key point**: `enrich.py` only updates the **job file** – it never touches candle files.  
+**Key point**: `enrich.py` only updates the **job file** - it never touches candle files.  
 `kite.py` (with or without `--update-metadata-only`) propagates metadata from the job file into candle files.  
 Thus you can refresh fundamentals without re‑downloading historical candles.
 
@@ -174,7 +190,7 @@ python kite.py --job enriched.json --output-dir candles [--days N] [--update] [-
 - `--days` : Number of trading days to fetch (default from job’s `default_days` or 2000).
 - `--update` : Fetch only missing days since the last saved candle (much faster).
 - `--force-download` : Re‑download everything, ignoring existing files.
-- `--delay` : Seconds between API calls (default 1.0 – respect rate limits).
+- `--delay` : Seconds between API calls (default 1.0 - respect rate limits).
 
 The output file structure (e.g., `candles/RELIANCE.json`):
 
@@ -236,7 +252,7 @@ The two weights **must sum to 1.0** (the script normalises them internally).
   python kite.py --job enriched.json --output-dir candles --update-metadata-only
   ```
 
-No need to re‑fetch candles – the `--update-metadata-only` flag propagates the new fundamentals instantly.
+No need to re‑fetch candles - the `--update-metadata-only` flag propagates the new fundamentals instantly.
 
 ---
 
@@ -394,22 +410,32 @@ python stonks.py candles/
 This produces two tables. The technical indicators table (truncated):
 
 ```
-Symbol     | Close     | SMA(20)   | RSI(14) | MACD Line | MACD Signal | MACD Hist | BB Upper  | BB Lower  | ...
------------+-----------+-----------+---------+-----------+-------------+-----------+-----------+-----------+---
-HDFCBANK   | 744.550   | 769.155   | 39.086  | -8.162    | -8.429      | 0.266     | 796.959   | 741.351   | ...
-ITC        | 286.900   | 298.308   | 35.825  | -1.503    | -0.169      | -1.334    | 307.532   | 289.083   | ...
-RELIANCE   | 1321.200  | 1379.670  | 39.312  | -11.090   | -6.973      | -4.117    | 1470.564  | 1288.776  | ...
+-----------+-----------+-----------+---------+-----------+-------------+-----------+-----------+-----------+-----------+-----------+---------+--------+--------+--------+---------+----------+-------
+Symbol     | Close     | SMA(20)   | RSI(14) | MACD Line | MACD Signal | MACD Hist | BB Upper  | BB Lower  | KC Upper  | KC Lower  | ATR(14) | ADX    | +DI    | -DI    | Ret(5)% | Vol(20)% | Candle |
+-----------+-----------+-----------+---------+-----------+-------------+-----------+-----------+-----------+-----------+-----------+---------+--------+--------+--------+---------+----------+-------
+TATACONSUM | 1178.400  | 1197.750  | 49.172  | 13.953    | 21.305      | -7.352    | 1268.416  | 1127.084  | 1234.071  | 1145.573  | 29.500  | 23.742 | 20.192 | 20.001 | -1.381  | 34.803   | 0.000  |
+HDFCBANK   | 744.550   | 769.155   | 39.086  | -8.162    | -8.429      | 0.266     | 796.959   | 741.351   | 797.189   | 742.726   | 18.154  | 18.239 | 21.427 | 35.153 | -1.923  | 25.809   | 5.000  |
+INDIA VIX  | 16.190    | 17.797    | 41.625  | -0.769    | -0.527      | -0.242    | 20.263    | 15.332    | 20.397    | 15.030    | 1.789   | 13.072 | 13.868 | 23.042 | -9.147  | 77.696   | 0.000  |
+ITC        | 286.900   | 298.308   | 35.825  | -1.503    | -0.169      | -1.334    | 307.532   | 289.083   | 304.058   | 288.667   | 5.130   | 13.402 | 15.222 | 28.414 | -4.335  | 14.559   | 0.000  |
+RELIANCE   | 1321.200  | 1379.670  | 39.312  | -11.090   | -6.973      | -4.117    | 1470.564  | 1288.776  | 1406.178  | 1317.522  | 29.552  | 17.219 | 16.346 | 28.497 | -2.104  | 22.713   | 0.000  |
+NIFTY 50   | 23547.750 | 23831.287 | 43.367  | -51.569   | -52.499     | 0.930     | 24376.266 | 23286.309 | 24270.451 | 23342.850 | 309.200 | 15.964 | 22.086 | 35.863 | -0.452  | 13.592   | 0.000  |
+-----------+-----------+-----------+---------+-----------+-------------+-----------+-----------+-----------+-----------+-----------+---------+--------+--------+--------+---------+----------+-------
 ...
 ```
 
 And the fundamentals table:
 
 ```
-Symbol     | Trailing P/E | Forward P/E | P/B       | PEG  | ROE % | Profit Margin % | Rev Growth % | Earn Growth % | ...
------------+--------------+-------------+-----------+------+-------+-----------------+--------------+---------------+---
-HDFCBANK   | 16.628736    | 11.860803   | 1.9576683 | 0.89 | 13.8% | +0.27%          | -1.8%        | 0.075         | ...
-ITC        | 17.175756    | 15.948882   | 4.8975215 | 1.78 | 29.3% | +0.26%          | -5.0%        | -0.727        | ...
-RELIANCE   | 22.243805    | 18.482237   | 1.9886377 | 0.82 | 9.1%  | +0.08%          | +12.5%       | -0.126        | ...
+-----------+--------------+-------------+-----------+------+-------+-----------------+--------------+---------------+--------+-------------+----------------+------------+-------------+-----------------+------------------------+------------------
+Symbol     | Trailing P/E | Forward P/E | P/B       | PEG  | ROE % | Profit Margin % | Rev Growth % | Earn Growth % | Beta   | Div Yield % | Payout Ratio % | Market Cap | Analyst Rec | Target Upside % | Earnings Date          | Ex-Div Date       |
+-----------+--------------+-------------+-----------+------+-------+-----------------+--------------+---------------+--------+-------------+----------------+------------+-------------+-----------------+------------------------+------------------
+TATACONSUM | 73.6463      | 47.686386   | 5.5748377 | 0.55 | 6.9%  | +0.08%          | +17.9%       | 0.215         | 0.412  | 0.85        | 0.5295         | Large Cap  | BUY         | +17.69%         | in 52d -- clear window | 8d ago            |
+HDFCBANK   | 16.593039    | 11.8353405  | 1.9534656 | 0.89 | 13.8% | +0.27%          | -1.8%        | 0.075         | 0.481  | 1.75        | 0.2176         | Large Cap  | STRONG BUY  | +39.81%         | in 47d -- clear window | in 16d            |
+INDIA VIX  | N/A          | N/A         | N/A       | N/A  | N/A   | N/A             | N/A          | N/A           | N/A    | N/A         | N/A            | N/A        | N/A         | N/A             | N/A                    | N/A               |
+ITC        | 17.036364    | 15.819446   | 4.8577747 | 1.78 | 29.3% | +0.26%          | -5.0%        | -0.727        | -0.024 | 5.58        | 0.8692         | Large Cap  | HOLD        | +25.19%         | in 60d -- clear window | 6d ago            |
+RELIANCE   | 22.119892    | 18.379278   | 1.9775597 | 0.82 | 9.1%  | +0.08%          | +12.5%       | -0.126        | 0.244  | 0.45        | 0.0921         | Large Cap  | STRONG BUY  | +28.43%         | in 46d -- clear window | in 3d -- upcoming |
+NIFTY 50   | N/A          | N/A         | N/A       | N/A  | N/A   | N/A             | N/A          | N/A           | N/A    | N/A         | N/A            | N/A        | N/A         | N/A             | N/A                    | N/A               |
+-----------+--------------+-------------+-----------+------+-------+-----------------+--------------+---------------+--------+-------------+----------------+------------+-------------+-----------------+------------------------+------------------
 ...
 ```
 
@@ -475,7 +501,7 @@ This prints a detailed report with business summary, technical indicators (with 
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0 – see the [LICENSE](LICENSE) file for details.
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
 - You may freely use and modify this software for personal purposes.
 - Redistribution or derivative works must also be licensed under GPL‑3.0.

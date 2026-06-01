@@ -1,5 +1,30 @@
 #!/usr/bin/env python3
 """
+stonks - Stock Analysis Tool
+Copyright (C) 2025 Edmund Carvalho
+
+A comprehensive stock analysis tool with lazy indicator computation,
+parallel processing, weighted composite scoring, and clean table rendering.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY
+without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+"""
+
+
+
+"""
 Full enrichment pipeline with incremental saving:
 - NSE metadata from CSV files (capital, industry, sector, dependencies)
 - Yahoo Finance raw stock.info (all fields)
@@ -262,7 +287,7 @@ def full_enrich(input_file, output_file, delay_sec=DEFAULT_DELAY_SEC):
 
         yf_symbol = clean_symbol(symbol_raw)
         
-        # Indices have no meaningful fundamentals – skip with a note
+        # Indices have no meaningful fundamentals - skip with a note
         if yf_symbol.startswith('^'):
             print(f"[{idx}/{len(watchlist)}] {yf_symbol} ↪ index, skipping")
             entry.setdefault("metadata", {})["fundamentals"] = {
@@ -286,7 +311,7 @@ def full_enrich(input_file, output_file, delay_sec=DEFAULT_DELAY_SEC):
             save_progress()
             consecutive_failures += 1
             if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                print("⚠️  Too many consecutive failures – likely network issue. Stopping.")
+                print("⚠️  Too many consecutive failures - likely network issue. Stopping.")
                 break
 
         time.sleep(delay_sec)
