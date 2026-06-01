@@ -1,0 +1,11 @@
+{
+  "default_days": 2000,
+  "watchlist": [
+    { "symbol": "RELIANCE" },
+    { "symbol": "HDFCBANK" },
+    { "symbol": "TATACONSUM" },
+    { "symbol": "ITC" },
+    { "symbol": "INDIA VIX" },
+    { "symbol": "NIFTY 50" }
+  ]
+}

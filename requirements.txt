@@ -1,0 +1,7 @@
+# Core dependencies
+mcp>=0.1.0            # Kite MCP SSE client
+aiohttp>=3.8.0        # Required by MCP SSE client
+yfinance>=0.2.0       # Yahoo Finance fundamentals
+requests>=2.25.0      # For downloading NSE constituent CSVs (used in rich.py)
+
+# All other modules (argparse, json, csv, datetime, etc.) are part of the Python standard library.
