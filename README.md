@@ -118,7 +118,7 @@ Thus you can refresh fundamentals without re‑downloading historical candles.
 
 ## Quick Start
 
-# 1. Create a file named `mywatchlist.json` with the following content:
+### 1. Create a file named `mywatchlist.json` with the following content:
 ```json
 {
   "default_days": 500,
@@ -130,13 +130,17 @@ Thus you can refresh fundamentals without re‑downloading historical candles.
 }
 ```
 
-# 2. Enrich with fundamentals and NSE metadata
+### 2. Enrich with fundamentals and NSE metadata
+```bash
 python enrich.py mywatchlist.json enriched.json
+```
 
-# 3. Fetch historical candles (interactive login)
+### 3. Fetch historical candles (interactive login)
+```bash
 python kite.py --job enriched.json --output-dir candles --days 500
-
-# 4. Analyse and rank
+```
+### 4. Analyse and rank
+```bash
 python stonks.py candles/ -r --tech-weight 0.85 --fund-weight 0.15
 ```
 
