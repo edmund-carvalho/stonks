@@ -74,7 +74,7 @@ pip install -r requirements.txt
 basic job file (dailyJobs.json)
          │
          ▼
-    rich.py          ← adds NSE metadata + Yahoo Finance fundamentals (once or weekly)
+    enrich.py          ← adds NSE metadata + Yahoo Finance fundamentals (once or weekly)
          │
          ▼
  enriched job file (e.g., enriched.json)
@@ -85,7 +85,7 @@ basic job file (dailyJobs.json)
          ▼
   candles/*.json     ← each contains both price data and full metadata
          │
-         │  (later, after re‑running rich.py to refresh fundamentals)
+         │  (later, after re‑running enrich.py to refresh fundamentals)
          │
          ▼
     kite.py --update-metadata-only   ← updates metadata in existing candle files (no re‑fetch)
@@ -94,7 +94,7 @@ basic job file (dailyJobs.json)
    stonks.py         ← analysis & ranking
 ```
 
-**Key point**: `rich.py` only updates the **job file** – it never touches candle files.  
+**Key point**: `enrich.py` only updates the **job file** – it never touches candle files.  
 `kite.py` (with or without `--update-metadata-only`) propagates metadata from the job file into candle files.  
 Thus you can refresh fundamentals without re‑downloading historical candles.
 
@@ -116,7 +116,7 @@ cat > mywatchlist.json << EOF
 EOF
 
 # 2. Enrich with fundamentals and NSE metadata
-python rich.py mywatchlist.json enriched.json
+python enrich.py mywatchlist.json enriched.json
 
 # 3. Fetch historical candles (interactive login)
 python kite.py --job enriched.json --output-dir candles --days 500
@@ -131,7 +131,7 @@ python stonks.py candles/ -r --tech-weight 0.85 --fund-weight 0.15
 
 ### 1. Prepare a basic job file
 
-The job file is a JSON with a `watchlist` array. Each entry must have a `symbol` key. Optional `metadata` can be pre‑filled (e.g., `capital`, `sector`), but `rich.py` will overwrite or supplement it.
+The job file is a JSON with a `watchlist` array. Each entry must have a `symbol` key. Optional `metadata` can be pre‑filled (e.g., `capital`, `sector`), but `enrich.py` will overwrite or supplement it.
 
 ```json
 {
@@ -143,10 +143,10 @@ The job file is a JSON with a `watchlist` array. Each entry must have a `symbol`
 }
 ```
 
-### 2. Enrich with fundamentals and NSE metadata (`rich.py`)
+### 2. Enrich with fundamentals and NSE metadata (`enrich.py`)
 
 ```bash
-python rich.py input_job.json output_job.json
+python enrich.py input_job.json output_job.json
 ```
 
 - Reads the watchlist from `input_job.json`.
@@ -190,7 +190,7 @@ The output file structure (e.g., `candles/RELIANCE.json`):
 
 ### 4. Update only fundamentals in existing candle files (`kite.py --update-metadata-only`)
 
-After you re‑run `rich.py` to refresh fundamentals (e.g., new P/E ratios, analyst ratings), you have an **updated job file** with fresh `metadata.fundamentals`.  
+After you re‑run `enrich.py` to refresh fundamentals (e.g., new P/E ratios, analyst ratings), you have an **updated job file** with fresh `metadata.fundamentals`.  
 Instead of re‑downloading all candles, you can **update only the metadata** in your existing candle files using:
 
 ```bash
@@ -232,7 +232,7 @@ The two weights **must sum to 1.0** (the script normalises them internally).
 
 - **Weekly** (to refresh fundamentals, then update metadata in candle files):
   ```bash
-  python rich.py dailyJobs.json enriched.json   # fresh Yahoo data
+  python enrich.py dailyJobs.json enriched.json   # fresh Yahoo data
   python kite.py --job enriched.json --output-dir candles --update-metadata-only
   ```
 
@@ -244,7 +244,7 @@ No need to re‑fetch candles – the `--update-metadata-only` flag propagates t
 
 ### NSE constituent CSV files
 
-`rich.py` automatically downloads the following files from `niftyindices.com` if missing or older than 7 days:
+`enrich.py` automatically downloads the following files from `niftyindices.com` if missing or older than 7 days:
 
 - `ind_nifty100list.csv`
 - `ind_niftymidcap150list.csv`
@@ -307,9 +307,9 @@ Each indicator/fundamental provides a `classify()` method returning a verdict, a
 
 ## Command Line Reference
 
-### `rich.py`
+### `enrich.py`
 ```
-usage: python rich.py input.json output.json
+usage: python enrich.py input.json output.json
 ```
 Adds NSE metadata and Yahoo fundamentals to a job file.
 
@@ -343,7 +343,7 @@ Below is a complete run using a sample watchlist (`sampleBasicJob.json`) contain
 ### 1. Enrich the job file
 
 ```bash
-python rich.py sampleBasicJob.json sampleEnrichedJob.json
+python enrich.py sampleBasicJob.json sampleEnrichedJob.json
 ```
 
 Output:
