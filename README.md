@@ -1,4 +1,3 @@
-```markdown
 # stonks – Stock Analysis Tool
 
 A complete pipeline to fetch NSE stock data, enrich with fundamentals, compute technical indicators, and rank stocks using a cross‑sectional scoring system.
@@ -486,10 +485,7 @@ This project is licensed under the GNU General Public License v3.0 – see the [
 
 ## Author
 
-**Your Name**  
-[GitHub](https://github.com/yourusername)
+**Edmund Carvalho**  
+[GitHub](https://github.com/edmund-carvalho)
 
 *For questions or contributions, please open an issue on the repository.*
-```
-
-This README now includes a complete, realistic example that matches your terminal session, making it easier for users to understand the expected workflow and output.
