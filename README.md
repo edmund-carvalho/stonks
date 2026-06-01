@@ -444,7 +444,7 @@ NIFTY 50   | N/A          | N/A         | N/A       | N/A  | N/A   | N/A        
 ```bash
 python stonks.py candles/ -r --tech-weight 0.85 --fund-weight 0.15
 ```
-![Screenshot](docs/screenshot/ranking.png)
+![Screenshot](docs/screenshots/ranking.png)
 ```txt
 Gate Flags:
   M = Momentum (20d return > 0)
@@ -475,7 +475,7 @@ python stonks.py candles/HDFCBANK.json
 
 This prints a detailed report with business summary, technical indicators (with raw values and verdicts), and fundamental analysis (with scores). Example excerpt:
 
-![Screenshot](docs/screenshot/individual_stock_analysis.png)
+![Screenshot](docs/screenshots/individual_stock_analysis.png)
 
 ```txt
 ========================================================================
