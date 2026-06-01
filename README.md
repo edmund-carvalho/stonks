@@ -20,16 +20,11 @@ A complete pipeline to fetch NSE stock data, enrich with fundamentals, compute t
   - [Data Flow (Correct Order)](#data-flow-correct-order)
   - [Quick Start](#quick-start)
   - [Detailed Usage](#detailed-usage)
-    - [1. Prepare a basic job file](#1-prepare-a-basic-job-file)
-    - [2. Enrich with fundamentals and NSE metadata (`enrich.py`)](#2-enrich-with-fundamentals-and-nse-metadata-enrichpy)
-    - [3. Fetch historical candles (`kite.py`)](#3-fetch-historical-candles-kitepy)
-    - [4. Update only fundamentals in existing candle files (`kite.py --update-metadata-only`)](#4-update-only-fundamentals-in-existing-candle-files-kitepy---update-metadata-only)
-    - [5. Analyse and rank (`stonks.py`)](#5-analyse-and-rank-stonkspy)
-    - [Daily \& Weekly Routine](#daily--weekly-routine)
+  - [Daily \& Weekly Routine](#daily--weekly-routine)
   - [Configuration](#configuration)
-    - [NSE constituent CSV files](#nse-constituent-csv-files)
-    - [Trading holidays](#trading-holidays)
-    - [Market hours](#market-hours)
+    - [1. NSE constituent CSV files](#1-nse-constituent-csv-files)
+    - [2. Trading holidays](#2-trading-holidays)
+    - [3. Market hours](#3-market-hours)
   - [Scoring System](#scoring-system)
   - [Technical Indicators \& Fundamentals](#technical-indicators--fundamentals)
   - [Command Line Reference](#command-line-reference)
@@ -167,7 +162,7 @@ python stonks.py candles/ -r --tech-weight 0.85 --fund-weight 0.15
 
 ## Detailed Usage
 
-### 1. Prepare a basic job file
+**1. Prepare a basic job file**
 
 The job file is a JSON with a `watchlist` array. Each entry must have a `symbol` key. Optional `metadata` can be pre‑filled (e.g., `capital`, `sector`), but `enrich.py` will overwrite or supplement it.
 
@@ -181,7 +176,7 @@ The job file is a JSON with a `watchlist` array. Each entry must have a `symbol`
 }
 ```
 
-### 2. Enrich with fundamentals and NSE metadata (`enrich.py`)
+**2. Enrich with fundamentals and NSE metadata (`enrich.py`)**
 
 ```bash
 python enrich.py input_job.json output_job.json
@@ -195,7 +190,7 @@ python enrich.py input_job.json output_job.json
 
 > **Important**: This script Carvalhos **not** require existing candle data. It only modifies the job file. Run it once when you create a watchlist, and re‑run periodically (e.g., weekly) to refresh fundamentals.
 
-### 3. Fetch historical candles (`kite.py`)
+**3. Fetch historical candles (`kite.py`)**
 
 ```bash
 python kite.py --job enriched.json --output-dir candles [--days N] [--update] [--force-download]
@@ -226,7 +221,7 @@ The output file structure (e.g., `candles/RELIANCE.json`):
 }
 ```
 
-### 4. Update only fundamentals in existing candle files (`kite.py --update-metadata-only`)
+**4. Update only fundamentals in existing candle files (`kite.py --update-metadata-only`)**
 
 After you re‑run `enrich.py` to refresh fundamentals (e.g., new P/E ratios, analyst ratings), you have an **updated job file** with fresh `metadata.fundamentals`.
 Instead of re‑downloading all candles, you can **update only the metadata** in your existing candle files using:
@@ -244,7 +239,7 @@ python kite.py --job updated_enriched.json --output-dir candles --update-metadat
 This is extremely fast (no network delays) and preserves all historical price data.
 After this step, `stonks.py` will see the updated fundamentals when you analyse.
 
-### 5. Analyse and rank (`stonks.py`)
+**5. Analyse and rank (`stonks.py`)**
 
 ```bash
 python stonks.py candles/ [-r] [--tech-weight T] [--fund-weight F]
@@ -261,7 +256,7 @@ python stonks.py candles/ [-r] [--tech-weight T] [--fund-weight F]
 
 The two weights **must sum to 1.0** (the script normalises them internally).
 
-### Daily & Weekly Routine
+## Daily & Weekly Routine
 
 **Daily** (to get new candles):
 
@@ -282,7 +277,7 @@ No need to re‑fetch candles - the `--update-metadata-only` flag propagates the
 
 ## Configuration
 
-### NSE constituent CSV files
+### 1. NSE constituent CSV files
 
 `enrich.py` automatically downloads the following files from `niftyindices.com` if missing or older than 7 days:
 
@@ -292,7 +287,7 @@ No need to re‑fetch candles - the `--update-metadata-only` flag propagates the
 
 The download uses proper HTTP headers to avoid being blocked. You can also place these files manually in the working directory.
 
-### Trading holidays
+### 2. Trading holidays
 
 `kite.py` reads holidays from a `holidays.json` file (if present) or uses a built‑in set for 2026.  
 Format of `holidays.json`:
@@ -303,7 +298,7 @@ Format of `holidays.json`:
 
 Dates must be in `YYYY-MM-DD` format.
 
-### Market hours
+### 3. Market hours
 
 Hardcoded in `kite.py`:
 
