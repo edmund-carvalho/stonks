@@ -2549,6 +2549,7 @@ class MarketCap(BaseFundamentalIndicator):
         
         return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
 
+
 class AnalystRecommendation(BaseFundamentalIndicator):
     """
     Analyst Consensus Recommendation.
@@ -4291,7 +4292,6 @@ def parse_args():
     parser.add_argument("--fund-weight", type=float, default=0.15, help="Fundamental weight for ranking")
     return parser.parse_args()
 
-
 def main():
 
     print(_STONKS_BANNER)
@@ -4320,7 +4320,6 @@ def main():
         # Directory → both summary tables
         app.technical_summary()
         app.fundamental_summary()
-
 
 if __name__ == "__main__":
     main()

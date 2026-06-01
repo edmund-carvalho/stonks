@@ -2,7 +2,8 @@ import asyncio
 import argparse
 import os
 import json
-from datetime import datetime, timedelta, time, date
+from datetime import datetime, timedelta, date, time as dt_time
+import time
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 import urllib.request
@@ -11,8 +12,8 @@ import csv
 # ----------------------------------------------------------------------
 #  Market schedule constants
 # ----------------------------------------------------------------------
-MARKET_OPEN = time(9, 0)        # pre‑open starts
-MARKET_CLOSE = time(16, 0)      # closing session ends
+MARKET_OPEN = dt_time(9, 0)        # pre‑open starts
+MARKET_CLOSE = dt_time(16, 0)      # closing session ends
 
 # --- Holiday handling ---
 # Hardcoded NSE trading holidays for 2026.  Override with a "holidays.json" file.

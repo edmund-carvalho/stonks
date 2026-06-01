@@ -118,9 +118,8 @@ Thus you can refresh fundamentals without re‑downloading historical candles.
 
 ## Quick Start
 
-```bash
-# 1. Create a basic job file (just symbols)
-cat > mywatchlist.json << EOF
+# 1. Create a file named `mywatchlist.json` with the following content:
+```json
 {
   "default_days": 500,
   "watchlist": [
@@ -129,7 +128,7 @@ cat > mywatchlist.json << EOF
     { "symbol": "HDFCBANK" }
   ]
 }
-EOF
+```
 
 # 2. Enrich with fundamentals and NSE metadata
 python enrich.py mywatchlist.json enriched.json
