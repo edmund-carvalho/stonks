@@ -58,8 +58,7 @@ When you refresh fundamentals (e.g., weekly), you can **update only the metadata
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/stonks.git
-[![Clone](https://img.shields.io/badge/clone-repo-blue)](../../)
+git clone https://github.com/edmund-carvalho/stonks.git
 cd stonks
 
 # (Optional) Create a virtual environment
@@ -445,7 +444,7 @@ NIFTY 50   | N/A          | N/A         | N/A       | N/A  | N/A   | N/A        
 ```bash
 python stonks.py candles/ -r --tech-weight 0.85 --fund-weight 0.15
 ```
-
+![Screenshot](docs/screenshot/ranking.png)
 ```txt
 Gate Flags:
   M = Momentum (20d return > 0)
@@ -475,6 +474,8 @@ python stonks.py candles/HDFCBANK.json
 ```
 
 This prints a detailed report with business summary, technical indicators (with raw values and verdicts), and fundamental analysis (with scores). Example excerpt:
+
+![Screenshot](docs/screenshot/individual_stock_analysis.png)
 
 ```txt
 ========================================================================
