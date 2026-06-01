@@ -59,6 +59,7 @@ When you refresh fundamentals (e.g., weekly), you can **update only the metadata
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/stonks.git
+[![Clone](https://img.shields.io/badge/clone-repo-blue)](../../)
 cd stonks
 
 # (Optional) Create a virtual environment
