@@ -444,28 +444,8 @@ NIFTY 50   | N/A          | N/A         | N/A       | N/A  | N/A   | N/A        
 ```bash
 python stonks.py candles/ -r --tech-weight 0.85 --fund-weight 0.15
 ```
+Some arbitrary ranking based on your selection of technical/fundamental indicators and respective scoring weights set in code.
 ![Screenshot](docs/screenshots/ranking.png)
-```txt
-Gate Flags:
-  M = Momentum (20d return > 0)
-  T = Trend (price > SMA20 or oversold recovery)
-  A = ADX (ADX > 20 or RSI < 30)
-  F = MFI (MFI <= 80)
-  I = Ichimoku (price above cloud)
-  B = BB/TTM Squeeze (volatility compression)
-  ✓ = passed  ✗ = failed
-
---+------------+-------+------+------+---+---+---+---+---+--
-# | Symbol     | Score | TA   | FA   | M | T | A | F | I | B |
---+------------+-------+------+------+---+---+---+---+---+--
-1 | HDFCBANK   | 73.2  | 70.8 | 86.4 | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
-2 | TATACONSUM | 57.5  | 58.4 | 52.7 | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ |
-3 | ITC        | 53.0  | 49.4 | 73.2 | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
-4 | RELIANCE   | 50.4  | 47.2 | 68.5 | ✗ | ✗ | ✗ | ✓ | ✗ | ✗ |
-5 | NIFTY 50   | 49.5  | 58.3 | -    | ✗ | ✓ | ✗ | ✗ | ✗ | ✗ |
-6 | INDIA VIX  | 33.9  | 39.9 | -    | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
---+------------+-------+------+------+---+---+---+---+---+--
-```
 
 ### 5. Full report for a single stock
 
@@ -476,28 +456,6 @@ python stonks.py candles/HDFCBANK.json
 This prints a detailed report with business summary, technical indicators (with raw values and verdicts), and fundamental analysis (with scores). Example excerpt:
 
 ![Screenshot](docs/screenshots/individual_stock_analysis.png)
-
-```txt
-========================================================================
-  Full Report: HDFCBANK
-========================================================================
-  Date   : 2026-05-29   Close  : 744.550   Volume : 101,299,431
-
-  Business Summary:
-                        HDFC Bank Limited provides banking and financial products...
-
-  Technical Indicators:
-  SMA(20)        : pct=-3.20                                 (S:53) ▼ -3.2% below
-  RSI(14)        : rsi=39.09                                 (S:86) oversold recovery (39)
-  MACD           : macd=-8.16  signal=-8.43  histogram=0.27  (S:47) bullish hist=0.2665...
-  ...
-  Fundamental Analysis:
-  TrailingPE              16.63                                     reasonable (PE=16.6)            score  67
-  ForwardPE               11.86                                     cheap (PE=11.9)                 score  74
-  AnalystRec              (1.15385, 'strong_buy')                   STRONG BUY                      score  96
-  ...
-========================================================================
-```
 
 ---
 
