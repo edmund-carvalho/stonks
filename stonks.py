@@ -52,7 +52,7 @@ import re
 import textwrap
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Type, TypedDict
 
@@ -2804,12 +2804,14 @@ class Stock:
         self._fundamental_cache: Dict[str, Any] = {}
 
     @staticmethod
-    def _load_single_stock(filepath: str, precompute_mode: PreComputeMode = PreComputeMode.PCM_ALL) -> Optional[Stock]:
-        """Load and precompute a single stock from a JSON file."""
+    def _load_single_stock(filepath: str,
+                        precompute_mode: PreComputeMode = PreComputeMode.PCM_ALL,
+                        from_date: Optional[datetime] = None,
+                        to_date: Optional[datetime] = None) -> Optional["Stock"]:
         try:
-            stock = StockFactory.from_json_file(filepath)
-            stock.candles.sort(key=lambda c: c.timestamp)
-            stock.precompute(mode=precompute_mode)
+            stock = StockFactory.from_json_file(filepath, from_date=from_date, to_date=to_date)
+            if stock:
+                stock.precompute(mode=precompute_mode)
             return stock
         except Exception as e:
             print(f"ERROR loading {os.path.basename(filepath)}: {e}")
@@ -3018,7 +3020,9 @@ class Stock:
 class StockFactory:
     """Creates Stock instances from JSON files."""
     @staticmethod
-    def from_json_file(filepath: str) -> Stock:
+    def from_json_file(filepath: str,
+                       from_date: Optional[datetime] = None,
+                       to_date: Optional[datetime] = None) -> Stock:
         with open(filepath, 'r') as f:
             raw = json.load(f)
         # Symbol resolution: prefer file name, fallback to metadata without suffix
@@ -3029,6 +3033,12 @@ class StockFactory:
         candles = []
         for item in raw.get("data", []):
             ts = datetime.fromisoformat(item["date"])
+            # --- Date range filter ---
+            if from_date and ts < from_date:
+                continue
+            if to_date and ts > to_date:
+                continue
+            # -------------------------
             candle = Candle(
                 symbol=symbol,
                 timestamp=ts,
@@ -3040,6 +3050,10 @@ class StockFactory:
                 open_interest=float(item.get("oi", 0)) if "oi" in item else None
             )
             candles.append(candle)
+        candles.sort(key=lambda c: c.timestamp)
+        if len(candles) == 0:
+            # possibly no canles in date range !
+            return None
         return Stock(symbol=symbol, candles=candles, metadata=metadata, filepath=filepath)
 
 
@@ -4146,19 +4160,24 @@ class StockReporter:
 # =============================================================================
 class Stonks:
     """Main orchestrator - loads stocks, runs rankings, delegates to reporters."""
-    def __init__(self, path: str, precompute_mode: PreComputeMode = PreComputeMode.PCM_ALL):
+    def __init__(self, path: str,
+                 precompute_mode: PreComputeMode = PreComputeMode.PCM_ALL,
+                 from_date: Optional[datetime] = None,
+                 to_date: Optional[datetime] = None):
         self._path = path
-        self.stocks = self._load_all_stocks(path, precompute_mode)
+        self.stocks = self._load_all_stocks(path, precompute_mode, from_date, to_date)
         self.reporter = StockReporter(self.stocks)
 
     @staticmethod
-    def _load_all_stocks(path: str, precompute_mode: PreComputeMode = PreComputeMode.PCM_ALL) -> List[Stock]:
+    def _load_all_stocks(path: str,
+                        precompute_mode: PreComputeMode = PreComputeMode.PCM_ALL,
+                        from_date: Optional[datetime] = None,
+                        to_date: Optional[datetime] = None) -> List[Stock]:
         stocks = []
         if os.path.isfile(path):
-            stock = StockFactory.from_json_file(path)
-            stock.candles.sort(key=lambda c: c.timestamp)
-            stock.precompute(mode=precompute_mode)
-            stocks.append(stock)
+            stock = Stock._load_single_stock(path, precompute_mode, from_date, to_date)
+            if stock:
+                stocks.append(stock)
         elif os.path.isdir(path):
             files = [os.path.join(path, f) for f in sorted(os.listdir(path))
                     if f.endswith(".json")]
@@ -4166,7 +4185,7 @@ class Stonks:
             max_workers = min(32, (os.cpu_count() or 1) * 2)
 
             def load_with_mode(f):
-                return Stock._load_single_stock(f, precompute_mode)
+                return Stock._load_single_stock(f, precompute_mode, from_date, to_date)
             
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_file = {executor.submit(load_with_mode, f): f for f in files}
@@ -4350,11 +4369,13 @@ class Stonks:
 # =============================================================================
 def parse_args():
     parser = argparse.ArgumentParser(description="stonks - Stock Analysis Tool")
-    parser.add_argument("path", nargs="?", default=os.path.join(".", "data"),
-                        help="JSON file or directory with stock data")
-    parser.add_argument("-r", "--ranking", action="store_true", help="Show composite score ranking")
-    parser.add_argument("--tech-weight", type=float, default=0.5, help="Technical weight for ranking")
-    parser.add_argument("--fund-weight", type=float, default=0.15, help="Fundamental weight for ranking")
+    parser.add_argument("path", nargs="?", default=os.path.join(".", "data"),            help="JSON file or directory with stock data")
+    parser.add_argument("-r", "--ranking", action="store_true",                          help="Show composite score ranking")
+    parser.add_argument("--tech-weight",   dest="tech_weight", type=float, default=0.85, help="Technical weight for ranking")
+    parser.add_argument("--fund-weight",   dest="fund_weight", type=float, default=0.15, help="Fundamental weight for ranking")
+    parser.add_argument("--from-date",     dest="from_date",   type=str,   default=None, help="Start date (YYYY-MM-DD) for analysis window")
+    parser.add_argument("--to-date",       dest="to_date",     type=str,   default=None, help="End date (YYYY-MM-DD) for analysis window")
+    
     return parser.parse_args()
 
 def main():
@@ -4363,6 +4384,11 @@ def main():
 
     args = parse_args()
 
+    # Parse dates with IST timezone (matching the candle data)
+    ist = timezone(timedelta(hours=5, minutes=30))
+    from_date = datetime.fromisoformat(args.from_date).replace(tzinfo=ist) if args.from_date else None
+    to_date = datetime.fromisoformat(args.to_date).replace(tzinfo=ist) if args.to_date else None
+
     # Determine precompute mode
     precompute_mode = PreComputeMode.PCM_ALL
     if args.ranking and args.fund_weight == 0:
@@ -4370,7 +4396,7 @@ def main():
     elif args.ranking and args.tech_weight == 0:
         precompute_mode = PreComputeMode.PCM_FUNDAMENTAL
 
-    app = Stonks(args.path, precompute_mode=precompute_mode)
+    app = Stonks(args.path, precompute_mode=precompute_mode, from_date=from_date, to_date=to_date)
 
     if not app.stocks:
         print("ERROR: No valid stock data found.")
