@@ -4135,11 +4135,11 @@ class StockReporter:
                 v = ind.classify(stock, last_idx)
                 result = v.get("result", {})
                 if result:
-                    raw_str = "  ".join(f"{k}={_fmt_val(val)}" for k, val in result.items())[:40]
+                    raw_str = "  ".join(f"{k}={_fmt_val(val)}" for k, val in result.items())
                 else:
                     raw = stock.get_indicator(ind.name)
                     raw_str = _fmt_val(raw[last_idx]) if isinstance(raw, list) and raw[last_idx] is not None else "-"
-                print(f"  {ind.name:15s}: {raw_str:40s} {v['color']} (S:{v['score']:.0f}) {v['verdict']:80s}{CLR.E}")
+                print(f"  {ind.name:15s}: {raw_str:90s}{v['color']} {ind.name:15s}:(S:{v['score']:.0f}) {v['verdict']:80s}{CLR.E}")
             except Exception as e:
                 print(f"  {ind.name:22s}  error: {e}")
 
