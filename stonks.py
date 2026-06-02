@@ -4371,7 +4371,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="stonks - Stock Analysis Tool")
     parser.add_argument("path", nargs="?", default=os.path.join(".", "data"),            help="JSON file or directory with stock data")
     parser.add_argument("-r", "--ranking", action="store_true",                          help="Show composite score ranking")
-    parser.add_argument("--tech-weight",   dest="tech_weight", type=float, default=0.5,  help="Technical weight for ranking")
+    parser.add_argument("--tech-weight",   dest="tech_weight", type=float, default=0.85, help="Technical weight for ranking")
     parser.add_argument("--fund-weight",   dest="fund_weight", type=float, default=0.15, help="Fundamental weight for ranking")
     parser.add_argument("--from-date",     dest="from_date",   type=str,   default=None, help="Start date (YYYY-MM-DD) for analysis window")
     parser.add_argument("--to-date",       dest="to_date",     type=str,   default=None, help="End date (YYYY-MM-DD) for analysis window")

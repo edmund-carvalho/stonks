@@ -188,7 +188,7 @@ python enrich.py input_job.json output_job.json
 - Fetches **fresh** fundamentals from Yahoo Finance for each symbol (no caching by default).
 - Saves incrementally to `output_job.json` after each symbol (crash‑resistant).
 
-> **Important**: This script Carvalhos **not** require existing candle data. It only modifies the job file. Run it once when you create a watchlist, and re‑run periodically (e.g., weekly) to refresh fundamentals.
+> **NOTE**: This script does **not** require existing candle data. It only modifies the job file. Run it once when you create a watchlist, and re‑run periodically (e.g., weekly) to refresh fundamentals.
 
 **3. Fetch historical candles (`kite.py`)**
 
@@ -233,7 +233,7 @@ python kite.py --job updated_enriched.json --output-dir candles --update-metadat
 - Reads the **new enriched job file**.
 - For each symbol, opens the existing candle JSON file in `--output-dir`.
 - Replaces its `metadata` with the latest metadata from the job file.
-- **Carvalhos not** call the Kite API or modify candle `data`.
+- **Does not** call the Kite API or modify candle `data`.
 - Saves the file back.
 
 This is extremely fast (no network delays) and preserves all historical price data.
@@ -242,12 +242,19 @@ After this step, `stonks.py` will see the updated fundamentals when you analyse.
 **5. Analyse and rank (`stonks.py`)**
 
 ```bash
-python stonks.py candles/ [-r] [--tech-weight T] [--fund-weight F]
+python stonks.py candles/ [-r] [--tech-weight TECH_WEIGHT] [--fund-weight FUND_WEIGHT] [--from-date FROM_DATE] [--to-date TO_DATE] 
 ```
 
 - `candles/` can be a directory of JSON files (as produced by `kite.py`) or a single JSON file.
 - Without `-r` (ranking), shows two tables: technical indicators summary and fundamentals summary.
 - With `-r` : cross‑sectional ranking with normalised scores.
+
+**Date Range Filtering**:
+  Limit analysis to a specific historical window without modifying data files.
+All indicators and rankings are computed using only candles within the specified range.
+
+- `--from-date` : Start date (YYYY-MM-DD) for analysis window.
+- `--to-date` : End date (YYYY-MM-DD) for analysis window.
 
 **Ranking weights**:
 
@@ -367,14 +374,15 @@ usage: python kite.py --job JOB_FILE [--output-dir DIR] [--days N] [--update] [-
 ### `stonks.py`
 
 ```
-usage: python stonks.py PATH [-r] [--tech-weight T] [--fund-weight F]
+usage: python stonks.py [-h] [-r] [--tech-weight TECH_WEIGHT] [--fund-weight FUND_WEIGHT] [--from-date FROM_DATE] [--to-date TO_DATE] [path]
 ```
 
 - `PATH` : directory of candle JSONs or a single JSON file.
 - `-r` : show cross‑sectional ranking.
 - `--tech-weight` : weight for technical composite (default 0.85).
 - `--fund-weight` : weight for fundamental composite (default 0.15).
-
+- `--from-date` : Start date (YYYY-MM-DD) for analysis window.
+- `--to-date` : End date (YYYY-MM-DD) for analysis window.
 ---
 
 ## Example Walkthrough
