@@ -2810,7 +2810,8 @@ class Stock:
                         to_date: Optional[datetime] = None) -> Optional["Stock"]:
         try:
             stock = StockFactory.from_json_file(filepath, from_date=from_date, to_date=to_date)
-            stock.precompute(mode=precompute_mode)
+            if stock:
+                stock.precompute(mode=precompute_mode)
             return stock
         except Exception as e:
             print(f"ERROR loading {os.path.basename(filepath)}: {e}")
