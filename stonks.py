@@ -2493,7 +2493,7 @@ class MarketCap(BaseFundamentalIndicator):
         # Only relevant for equities
         funda = stock.metadata.get("fundamentals", {})
         quote_type = funda.get("quoteType", "")
-        if quote_type.upper() != "EQUITY":          # case‑insensitive, just to be safe
+        if quote_type.upper() != "EQUITY":          # case-insensitive, just to be safe
             return None
         
         # 1st choice: explicit classification string at top level
@@ -3246,6 +3246,7 @@ FACTOR_WEIGHTS: Dict[str, float] = {
     "overextension":   0.08,
     "pivot_proximity": 0.05,
     "fib_retrace":     0.05,
+    "bullish_setup":   0.0,   # NEW – confirmation quality
 }
 
 # Default fundamental sub-category weights (sum = 1.0)
@@ -3851,6 +3852,70 @@ class FibRetraceFactor(BaseScoreFactor):
         except (KeyError, IndexError, TypeError):
             return 50.0
 
+
+class BullishSetupFactor(BaseScoreFactor):
+    """
+    Quality of the bullish reversal setup.
+
+    Combines three conditions identified as critical for a successful bounce:
+      1. ADX direction: +DI > -DI (uptrend or trend turning bullish).
+      2. CandleScore >= 3 (bullish pattern confirmation).
+      3. Ret(5) not extended (not chasing a recent run-up).
+
+    Returns a continuous 0-100 score. Higher = perfect setup.
+    """
+    @property
+    def name(self): return "bullish_setup"
+
+    def score(self, stock: "Stock", index: int = -1) -> Optional[float]:
+        c = stock.closes
+        n = len(c)
+        idx = index if index >= 0 else n + index
+
+        # ---------- ADX direction ----------
+        adx_score = 0.0
+        try:
+            adx_data = stock.get_indicator("ADX(14)")
+            pdi = adx_data["+di"][idx]
+            mdi = adx_data["-di"][idx]
+            if pdi is not None and mdi is not None and pdi > mdi:
+                # Stronger bullish bias → higher score
+                adx_score = min(100.0, (pdi - mdi) * 5.0)
+        except:
+            pass
+
+        # ---------- CandleScore ----------
+        candle_score = 0.0
+        try:
+            cs_data = stock.get_indicator("CandleScore")
+            cs_vals = cs_data.get("vals", []) if isinstance(cs_data, dict) else cs_data
+            cs_val = cs_vals[idx] if idx < len(cs_vals) else None
+            if cs_val is not None and cs_val >= 3:
+                # +3 → 60, +5 → 100
+                candle_score = min(100.0, cs_val * 20.0)
+        except:
+            pass
+
+        # ---------- Ret(5) extension ----------
+        ret5_score = 0.0
+        try:
+            ret5_data = stock.get_indicator("Ret(5)")
+            ret5_vals = ret5_data.get("vals", []) if isinstance(ret5_data, dict) else ret5_data
+            ret5 = ret5_vals[idx] if idx < len(ret5_vals) else None
+            if ret5 is not None:
+                if ret5 <= -5:
+                    ret5_score = 100.0
+                elif ret5 <= 5:
+                    # Linear: -5→100, +5→0
+                    ret5_score = 100.0 - (ret5 + 5) * 10.0
+                else:
+                    ret5_score = 0.0
+        except:
+            pass
+
+        # Combine (equal weight average)
+        combined = (adx_score + candle_score + ret5_score) / 3.0
+        return max(0.0, min(100.0, combined))
 
 # ---------------------------------------------------------------------------
 # Bonus computer  (added after normalisation, never normalised itself)
