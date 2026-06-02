@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-stonks - Stock Analysis Tool
+stonks enrich - Stock Fundamental Data Fetching Tool
 Copyright (C) 2025 Edmund Carvalho
 
 A comprehensive stock analysis tool with lazy indicator computation,

@@ -1,5 +1,5 @@
 """
-stonks - Stock Analysis Tool
+stonks kite - OHLCV Data Fetching Tool
 Copyright (C) 2025 Edmund Carvalho
 
 A comprehensive stock analysis tool with lazy indicator computation,
@@ -40,7 +40,8 @@ MARKET_CLOSE = dt_time(16, 0)      # closing session ends
 
 # --- Holiday handling ---
 # Hardcoded NSE trading holidays for 2026.  Override with a "holidays.json" file.
-_DEFAULTS = {
+# TODO : Better to enforce json file this causes confusion later
+_DEFAULT_HOLIDAY_LIST = {
     date(2026, 1, 15),   # Municipal Corporation Election - Maharashtra
     date(2026, 1, 26),   # Republic Day
     date(2026, 3, 3),    # Holi
@@ -70,7 +71,7 @@ def load_holidays():
             return {datetime.strptime(d, "%Y-%m-%d").date() for d in data}
         except Exception:
             pass
-    return _DEFAULTS
+    return _DEFAULT_HOLIDAY_LIST
 
 HOLIDAYS = load_holidays()
 
@@ -82,14 +83,12 @@ def is_trading_day(d):
     """Return True if the given date is a trading day (not weekend/holiday)."""
     return d.weekday() < 5 and d not in HOLIDAYS
 
-
 def next_trading_day(d):
     """Return the next trading day strictly after the given date."""
     nxt = d + timedelta(days=1)
     while not is_trading_day(nxt):
         nxt += timedelta(days=1)
     return nxt
-
 
 def is_market_open(dt=None):
     """True if dt (default now) is within trading hours and not a holiday."""
@@ -99,7 +98,6 @@ def is_market_open(dt=None):
         return False
     t = dt.time()
     return MARKET_OPEN <= t < MARKET_CLOSE
-
 
 def safe_to_date(dt=None):
     """Return a 'YYYY-MM-DD 23:59:59' string suitable for the API.
@@ -111,7 +109,6 @@ def safe_to_date(dt=None):
         dt = dt - timedelta(days=1) # do not fetch incomplete daily cadle !
     return dt.strftime("%Y-%m-%d 23:59:59")
 
-
 def parse_candle_date(s):
     """Parse a candle date string that may be in one of several formats."""
     s = str(s)
@@ -121,7 +118,6 @@ def parse_candle_date(s):
         except ValueError:
             continue
     return datetime.strptime(s[:10], "%Y-%m-%d")
-
 
 # ----------------------------------------------------------------------
 #  Kite MCP wrapper
@@ -230,28 +226,6 @@ def lookup_nse_token_fast(symbol, instruments):
                 and instrument['instrument_type'] == 'EQ'):
             return int(instrument['instrument_token'])
     return None
-
-
-def parse_user_args():
-    parser = argparse.ArgumentParser(
-        description="Fetch historical data for NSE stocks via Kite MCP"
-    )
-    parser.add_argument("--symbols", nargs='+', help="NSE symbols (space separated)")
-    parser.add_argument("--days", type=int, default=2000,
-                        help="Number of days to fetch (default: 2000)")
-    parser.add_argument("--job", "-j", type=str,
-                        help="Path to job JSON file (e.g., dailyJobs.json)")
-    parser.add_argument("--output-dir", "-o", type=str, default=".",
-                        help="Directory to save JSON files (default: current directory)")
-    parser.add_argument("--delay", type=float, default=1,
-                        help="Delay between API calls in seconds (default: 1.0)")
-    parser.add_argument("--force-download", "-f", default=False, action="store_true",
-                        help="Force re-download data")
-    parser.add_argument("--update", "-u", default=False, action="store_true",
-                        help="Update mode: fetch only missing days since last saved candle")
-    parser.add_argument("--update-metadata-only", default=False, action="store_true",
-                        help="Only update metadata in saved JSON files from the job file (no data fetch)")
-    return parser.parse_args()
 
 # <-- UPDATE MODE: helper to get last date from saved file
 def get_last_candle_date(symbol, output_dir):
@@ -382,6 +356,26 @@ def update_metadata_only(tasks, output_dir):
             print(f"[FAIL] {symbol} - {e}")
     print(f"Updated metadata for {updated} symbol(s).")
 
+def parse_user_args():
+    parser = argparse.ArgumentParser(
+        description="Fetch historical data for NSE stocks via Kite MCP"
+    )
+    parser.add_argument("--symbols", nargs='+', help="NSE symbols (space separated)")
+    parser.add_argument("--days", type=int, default=2000,
+                        help="Number of days to fetch (default: 2000)")
+    parser.add_argument("--job", "-j", type=str,
+                        help="Path to job JSON file (e.g., dailyJobs.json)")
+    parser.add_argument("--output-dir", "-o", type=str, default=".",
+                        help="Directory to save JSON files (default: current directory)")
+    parser.add_argument("--delay", type=float, default=1,
+                        help="Delay between API calls in seconds (default: 1.0)")
+    parser.add_argument("--force-download", "-f", default=False, action="store_true",
+                        help="Force re-download data")
+    parser.add_argument("--update", "-u", default=False, action="store_true",
+                        help="Update mode: fetch only missing days since last saved candle")
+    parser.add_argument("--update-metadata-only", default=False, action="store_true",
+                        help="Only update metadata in saved JSON files from the job file (no data fetch)")
+    return parser.parse_args()
 
 # ----------------------------------------------------------------------
 #  Main orchestrator
