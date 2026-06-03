@@ -1,6 +1,6 @@
 # stonks - Stock Analysis Tool
 
-A complete pipeline to fetch NSE stock data, enrich with fundamentals, compute technical indicators, and rank stocks using a cross‑sectional scoring system.
+A complete pipeline to fetch NSE stock data, enrich with fundamentals, compute technical indicators, and rank stocks using a cross-sectional scoring system.
 
 ---
 
@@ -39,26 +39,26 @@ A complete pipeline to fetch NSE stock data, enrich with fundamentals, compute t
 
 ## Overview
 
-`stonks` is a three‑stage tool for Indian (NSE) equity analysis:
+`stonks` is a three-stage tool for Indian (NSE) equity analysis:
 
 1. **Enrichment** - Adds market cap, industry, sector, dependencies, and Yahoo Finance fundamentals to a watchlist (job file).
 2. **Data Fetching** - Downloads daily OHLCV candles via Kite Connect (MCP) and copies the enriched metadata into each candle file.
-3. **Analysis** - Computes technical indicators, fundamental scores, and cross‑sectional rankings.
+3. **Analysis** - Computes technical indicators, fundamental scores, and cross-sectional rankings.
 
 The pipeline is designed to run **once** for fundamentals (they are stored in the job file) and **daily** for candle updates.
-When you refresh fundamentals (e.g., weekly), you can **update only the metadata** in existing candle files without re‑downloading candles.
+When you refresh fundamentals (e.g., weekly), you can **update only the metadata** in existing candle files without re-downloading candles.
 
 ---
 
 ## Features
 
 - **Technical Indicators**: SMA, EMA, RSI, MACD, Bollinger Bands, ATR, ADX, Ichimoku, Fibonacci, Monthly Pivots, Rolling Returns, Volatility, Candlestick Patterns, Candle Score, Keltner Channel, TTM Squeeze.
-- **Fundamental Metrics**: Trailing/Forward P/E, P/B, PEG, ROE, Profit Margin, Revenue/Earnings Growth, Beta, Dividend Yield, Payout Ratio, Market Cap, Analyst Recommendation, Target Upside, Earnings/Ex‑Dividend Dates, 52‑Week Position.
-- **Cross‑Sectional Ranking**: Normalised factor‑based scoring with configurable technical/fundamental blend.
+- **Fundamental Metrics**: Trailing/Forward P/E, P/B, PEG, ROE, Profit Margin, Revenue/Earnings Growth, Beta, Dividend Yield, Payout Ratio, Market Cap, Analyst Recommendation, Target Upside, Earnings/Ex-Dividend Dates, 52-Week Position.
+- **Cross-Sectional Ranking**: Normalised factor-based scoring with configurable technical/fundamental blend.
 - **Incremental Updates**: Fetch only missing candles; skip already downloaded data.
-- **Metadata‑Only Updates**: Refresh fundamentals in existing candle files without re‑fetching candles.
-- **Crash‑Resistant Enrichment**: Saves after each symbol.
-- **Parallel Loading**: Multi‑threaded stock loading for large datasets.
+- **Metadata-Only Updates**: Refresh fundamentals in existing candle files without re-fetching candles.
+- **Crash-Resistant Enrichment**: Saves after each symbol.
+- **Parallel Loading**: Multi-threaded stock loading for large datasets.
 - **Coloured Terminal Output**: Readable with ANSI colour codes.
 
 ---
@@ -83,13 +83,13 @@ pip install -r requirements.txt
 
 `kite.py` fetches candle data via the **Kite MCP** server (`https://mcp.kite.trade/mcp`). To use it you need:
 
-1. **A Zerodha account** - Kite MCP authenticates through your existing Zerodha credentials via a browser-based two‑factor login flow. No separate API key is required.
+1. **A Zerodha account** - Kite MCP authenticates through your existing Zerodha credentials via a browser-based two-factor login flow. No separate API key is required.
    For more details see:
    - [Kite MCP GitHub](https://github.com/zerodha/kite-mcp-server)
    - [Zerodha's Kite MCP setup guide](https://zerodha.com/z-connect/featured/connect-your-zerodha-account-to-ai-assistants-with-kite-mcp)
 
    We only use the **`get_historical_data`** tool for now and nothing else. Future versions will support only `get_*` tools to avoid accidents.
-> **Security note**: Your Zerodha credentials never pass through the stonks app. Authentication is handled externally via Kite's secure OAuth flow, and all MCP operations are read‑only by default.
+> **Security note**: Your Zerodha credentials never pass through the stonks app. Authentication is handled externally via Kite's secure OAuth flow, and all MCP operations are read-only by default.
 
 ---
 
@@ -110,10 +110,10 @@ basic job file (dailyJobs.json)
          ▼
   candles/*.json     ← each contains both price data and full metadata
          │
-         │  (later, after re‑running enrich.py to refresh fundamentals)
+         │  (later, after re-running enrich.py to refresh fundamentals)
          │
          ▼
-    kite.py --update-metadata-only   ← updates metadata in existing candle files (no re‑fetch)
+    kite.py --update-metadata-only   ← updates metadata in existing candle files (no re-fetch)
          │
          ▼
    stonks.py         ← analysis & ranking
@@ -121,7 +121,7 @@ basic job file (dailyJobs.json)
 
 **Key point**: `enrich.py` only updates the **job file** - it never touches candle files.
 `kite.py` (with or without `--update-metadata-only`) propagates metadata from the job file into candle files.
-Thus you can refresh fundamentals without re‑downloading historical candles.
+Thus you can refresh fundamentals without re-downloading historical candles.
 
 ---
 
@@ -158,13 +158,15 @@ python kite.py --job enriched.json --output-dir candles --days 500
 python stonks.py candles/ -r --tech-weight 0.85 --fund-weight 0.15
 ```
 
+> **NOTE**: Running randomized analysis of 750 stocks with over 1200 daily candle history we have a **win ratio of less than 30% for the top 10 ranked stocks !!** . This is pretty much useless at this point :)
+
 ---
 
 ## Detailed Usage
 
 **1. Prepare a basic job file**
 
-The job file is a JSON with a `watchlist` array. Each entry must have a `symbol` key. Optional `metadata` can be pre‑filled (e.g., `capital`, `sector`), but `enrich.py` will overwrite or supplement it.
+The job file is a JSON with a `watchlist` array. Each entry must have a `symbol` key. Optional `metadata` can be pre-filled (e.g., `capital`, `sector`), but `enrich.py` will overwrite or supplement it.
 
 ```json
 {
@@ -186,9 +188,9 @@ python enrich.py input_job.json output_job.json
 - Downloads NSE constituent CSVs (if missing or older than 7 days) from `niftyindices.com`.
 - Adds `capital` (LARGE/MID/SMALL), `industry`, `sector`, `dependencies` using the CSV data.
 - Fetches **fresh** fundamentals from Yahoo Finance for each symbol (no caching by default).
-- Saves incrementally to `output_job.json` after each symbol (crash‑resistant).
+- Saves incrementally to `output_job.json` after each symbol (crash-resistant).
 
-> **NOTE**: This script does **not** require existing candle data. It only modifies the job file. Run it once when you create a watchlist, and re‑run periodically (e.g., weekly) to refresh fundamentals.
+> **NOTE**: This script does **not** require existing candle data. It only modifies the job file. Run it once when you create a watchlist, and re-run periodically (e.g., weekly) to refresh fundamentals.
 
 **3. Fetch historical candles (`kite.py`)**
 
@@ -206,7 +208,7 @@ python kite.py --job enriched.json --output-dir candles [--days N] [--update] [-
 
 - `--days` : Number of trading days to fetch (default from job's `default_days` or 2000).
 - `--update` : Fetch only missing days since the last saved candle (much faster).
-- `--force-download` : Re‑download everything, ignoring existing files.
+- `--force-download` : Re-download everything, ignoring existing files.
 - `--delay` : Seconds between API calls (default 1.0 - respect rate limits).
 
 The output file structure (e.g., `candles/RELIANCE.json`):
@@ -223,8 +225,8 @@ The output file structure (e.g., `candles/RELIANCE.json`):
 
 **4. Update only fundamentals in existing candle files (`kite.py --update-metadata-only`)**
 
-After you re‑run `enrich.py` to refresh fundamentals (e.g., new P/E ratios, analyst ratings), you have an **updated job file** with fresh `metadata.fundamentals`.
-Instead of re‑downloading all candles, you can **update only the metadata** in your existing candle files using:
+After you re-run `enrich.py` to refresh fundamentals (e.g., new P/E ratios, analyst ratings), you have an **updated job file** with fresh `metadata.fundamentals`.
+Instead of re-downloading all candles, you can **update only the metadata** in your existing candle files using:
 
 ```bash
 python kite.py --job updated_enriched.json --output-dir candles --update-metadata-only
@@ -247,7 +249,7 @@ python stonks.py candles/ [-r] [--tech-weight TECH_WEIGHT] [--fund-weight FUND_W
 
 - `candles/` can be a directory of JSON files (as produced by `kite.py`) or a single JSON file.
 - Without `-r` (ranking), shows two tables: technical indicators summary and fundamentals summary.
-- With `-r` : cross‑sectional ranking with normalised scores.
+- With `-r` : cross-sectional ranking with normalised scores.
 
 **Date Range Filtering**:
   Limit analysis to a specific historical window without modifying data files.
@@ -278,7 +280,7 @@ python enrich.py dailyJobs.json enriched.json   # fresh Yahoo data
 python kite.py --job enriched.json --output-dir candles --update-metadata-only
 ```
 
-No need to re‑fetch candles - the `--update-metadata-only` flag propagates the new fundamentals instantly.
+No need to re-fetch candles - the `--update-metadata-only` flag propagates the new fundamentals instantly.
 
 ---
 
@@ -296,7 +298,7 @@ The download uses proper HTTP headers to avoid being blocked. You can also place
 
 ### 2. Trading holidays
 
-`kite.py` reads holidays from a `holidays.json` file (if present) or uses a built‑in set for 2026.  
+`kite.py` reads holidays from a `holidays.json` file (if present) or uses a built-in set for 2026.  
 Format of `holidays.json`:
 
 ```json
@@ -309,7 +311,7 @@ Dates must be in `YYYY-MM-DD` format.
 
 Hardcoded in `kite.py`:
 
-- Market open: 09:00 (pre‑open starts)
+- Market open: 09:00 (pre-open starts)
 - Market close: 16:00
 
 Modify `MARKET_OPEN` and `MARKET_CLOSE` if needed.
@@ -318,16 +320,16 @@ Modify `MARKET_OPEN` and `MARKET_CLOSE` if needed.
 
 ## Scoring System
 
-The ranking engine uses a **two‑pass cross‑sectional normalisation**:
+The ranking engine uses a **two-pass cross-sectional normalisation**:
 
 1. **Raw factor scores** are calculated for each stock (momentum, trend, RSI quality, Sharpe, etc.).
-2. **Min‑max normalisation** across the universe turns each factor into a 0‑100 score.
+2. **Min-max normalisation** across the universe turns each factor into a 0-100 score.
 3. **Weighted composite** (technical) = sum of factor weights × normalised scores.
-4. **Bonus computer** adds candlestick, Ichimoku, peak‑proximity, and TTM squeeze adjustments.
-5. **Fundamental composite** is built from sub‑categories (valuation, quality, growth, analyst, etc.).
+4. **Bonus computer** adds candlestick, Ichimoku, peak-proximity, and TTM squeeze adjustments.
+5. **Fundamental composite** is built from sub-categories (valuation, quality, growth, analyst, etc.).
 6. **Final overall score** = `(1 - fund_weight) * ta_composite + fund_weight * fa_composite`.
 
-The default factor weights and fundamental sub‑weights are documented inside `stonks.py`. You can override them via the API or by editing the script.
+The default factor weights and fundamental sub-weights are documented inside `stonks.py`. You can override them via the API or by editing the script.
 
 For a detailed explanation of each factor, see the **Scoring System** section in the source code comments.
 
@@ -335,15 +337,15 @@ For a detailed explanation of each factor, see the **Scoring System** section in
 
 ## Technical Indicators & Fundamentals
 
-**Technical indicators** (auto‑registered):
+**Technical indicators** (auto-registered):
 
 - SMA, EMA, RSI, MACD, Bollinger Bands, ATR, MFI, ADX, Ichimoku, Fibonacci, Monthly Pivot, Rolling Return, Annualised Volatility, Candle Patterns, Candle Score, Keltner Channel, TTM Squeeze.
 
-**Fundamental metrics** (auto‑registered):
+**Fundamental metrics** (auto-registered):
 
 - TrailingPE, ForwardPE, P/B, PEG, ROE, ProfitMargin, RevenueGrowth, EarningsGrowth, Beta, DividendYield, PayoutRatio, MarketCap, AnalystRec, TargetUpside, EarningsDate, ExDividendDate, 52Week.
 
-Each indicator/fundamental provides a `classify()` method returning a verdict, a 0‑100 score, and a colour.
+Each indicator/fundamental provides a `classify()` method returning a verdict, a 0-100 score, and a colour.
 
 ---
 
@@ -367,7 +369,7 @@ usage: python kite.py --job JOB_FILE [--output-dir DIR] [--days N] [--update] [-
 - `--output-dir` : directory for candle JSON files (default `.`).
 - `--days` : number of trading days to fetch.
 - `--update` : incremental candle fetch (only missing days).
-- `--force-download` : re‑fetch all candles (ignore existing).
+- `--force-download` : re-fetch all candles (ignore existing).
 - `--update-metadata-only` : **do not fetch candles**; only update metadata in existing candle files from the job file.
 - `--delay` : seconds between API calls (default 1.0).
 
@@ -378,7 +380,7 @@ usage: python stonks.py [-h] [-r] [--tech-weight TECH_WEIGHT] [--fund-weight FUN
 ```
 
 - `PATH` : directory of candle JSONs or a single JSON file.
-- `-r` : show cross‑sectional ranking.
+- `-r` : show cross-sectional ranking.
 - `--tech-weight` : weight for technical composite (default 0.85).
 - `--fund-weight` : weight for fundamental composite (default 0.15).
 - `--from-date` : Start date (YYYY-MM-DD) for analysis window.
@@ -473,7 +475,7 @@ NIFTY 50   | N/A          | N/A         | N/A       | N/A  | N/A   | N/A        
 ...
 ```
 
-**4. Cross‑sectional ranking**
+**4. Cross-sectional ranking**
 
 ```bash
 python stonks.py candles/ -r --tech-weight 0.85 --fund-weight 0.15
@@ -500,7 +502,7 @@ This prints a detailed report with business summary, technical indicators (with 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
 - You may freely use and modify this software for personal purposes.
-- Redistribution or derivative works must also be licensed under GPL‑3.0.
+- Redistribution or derivative works must also be licensed under GPL-3.0.
 - Commercial resale of this software as a standalone product is prohibited.
 
 ---

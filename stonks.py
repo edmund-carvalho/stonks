@@ -231,13 +231,33 @@ class SMA(BaseTechnicalIndicator):
         px = stock.closes[index]
         ma = series[index]
         pct = (px / ma - 1) * 100
+        
+        # Get ATR for volatility scaling
+        try:
+            atr_data = stock.get_indicator("ATR(14)")
+            atr_vals = atr_data["atr_vals"] if isinstance(atr_data, dict) else atr_data
+            atr = atr_vals[index] if index < len(atr_vals) and atr_vals[index] else None
+        except:
+            atr = None
+        
+        if atr and ma > 0:
+            vol = (atr / ma) * 100
+            if vol > 0:
+                z_score = pct / vol
+                # tanh squashes extreme values: z=0→0, z=2→0.96, z=5→1.0
+                score = 50.0 + math.tanh(z_score * 0.8) * 40.0
+            else:
+                score = 50.0
+        else:
+            score = 50.0
+
+        score = max(10, min(90, int(round(score))))
+        
         if pct > 0:
             verdict = f"▲ {pct:+.1f}% above"
-            score = int(min(90, 60 + abs(pct) * 2))
             color = CLR.G
         else:
             verdict = f"▼ {pct:+.1f}% below"
-            score = int(max(10, 60 - abs(pct) * 2))
             color = CLR.R
         return {"verdict": verdict, "score": score, "color": color, "result": {"pct": pct}}
 
@@ -345,48 +365,38 @@ class RSI(BaseTechnicalIndicator):
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
         rsi = series[index]
         
-        # Market cap adjusted sweet spot: small caps have wider acceptable ranges
+        # Market cap adjusted sweet spot
         cap = stock.metadata.get("capital", "").upper()
         if "SMALL" in cap:
-            sweet_low, sweet_high = 35, 70
+            sweet_mid, steepness = 50, 0.12
         elif "LARGE" in cap:
-            sweet_low, sweet_high = 45, 60
+            sweet_mid, steepness = 45, 0.15
         else:
-            sweet_low, sweet_high = 40, 65
+            sweet_mid, steepness = 47, 0.13
+
+        score = int(round(100.0 / (1.0 + math.exp((rsi - sweet_mid) * steepness))))
         
-        # Piecewise linear continuous scoring
-        if rsi <= sweet_low - 10:
-            score = 100.0 - (rsi / (sweet_low - 10)) * 10.0
+        # Verdict label based on RSI zones
+        if rsi < 30:
             verdict = f"OVERSOLD ({rsi:.0f})"
             color = CLR.G
-        elif rsi <= sweet_low:
-            score = 90.0 - ((rsi - (sweet_low - 10)) / 10) * 10.0
-            verdict = f"oversold recovery ({rsi:.0f})"
+        elif rsi < 45:
+            verdict = f"value zone ({rsi:.0f})"
             color = CLR.G
-        elif rsi <= (sweet_low + sweet_high) / 2:
-            midpoint = (sweet_low + sweet_high) / 2
-            score = 80.0 + ((rsi - sweet_low) / (midpoint - sweet_low)) * 20.0
-            verdict = f"approaching sweet-spot ({rsi:.0f})"
-            color = CLR.CY
-        elif rsi <= sweet_high:
-            midpoint = (sweet_low + sweet_high) / 2
-            score = 100.0 - ((rsi - midpoint) / (sweet_high - midpoint)) * 10.0
+        elif rsi <= 55:
             verdict = f"sweet-spot ({rsi:.0f})"
             color = CLR.CY
-        elif rsi <= sweet_high + 10:
-            score = 90.0 - ((rsi - sweet_high) / 10) * 40.0
+        elif rsi <= 70:
             verdict = f"elevated ({rsi:.0f})"
             color = CLR.Y
-        elif rsi <= sweet_high + 20:
-            score = 50.0 - ((rsi - (sweet_high + 10)) / 10) * 40.0
+        elif rsi <= 80:
             verdict = f"OVERBOUGHT ({rsi:.0f})"
             color = CLR.R
         else:
-            score = max(0.0, 10.0 - ((rsi - (sweet_high + 20)) / (100 - sweet_high - 20)) * 10.0)
-            verdict = f"OVERBOUGHT extreme ({rsi:.0f})"
+            verdict = f"extreme ({rsi:.0f})"
             color = CLR.R
         
-        return {"verdict": verdict, "score": int(round(score)), "color": color, "result": {"rsi": rsi}}
+        return {"verdict": verdict, "score": score, "color": color, "result": {"rsi": rsi}}
 
 
 class MACD(BaseTechnicalIndicator):
@@ -419,12 +429,13 @@ class MACD(BaseTechnicalIndicator):
         macd_line = [0.0] * n
         signal = [0.0] * n
         histogram = [0.0] * n
+        hist_lo = [None] * n
+        hist_hi = [None] * n
         
         if n < 26:
             return {"macd": macd_line, "signal": signal, "histogram": histogram,
-                    "hist_lo": None, "hist_hi": None}
+                    "hist_lo": hist_lo, "hist_hi": hist_hi}
 
-        # Compute EMA(12) and EMA(26) directly - no dependency on other indicators
         ema12 = self._ema(closes, 12)
         ema26 = self._ema(closes, 26)
 
@@ -439,11 +450,15 @@ class MACD(BaseTechnicalIndicator):
                 signal[i] = sig_ema[i]
                 histogram[i] = macd_line[i] - signal[i]
         
-        # Pre-compute 1-year histogram range for O(1) classification
-        w = min(HIST_WINDOW, len(histogram))
-        valid = [v for v in histogram[-w:] if v is not None]
-        hist_lo = min(valid) if valid else None
-        hist_hi = max(valid) if valid else None
+        # Compute ROLLING hist stats for each bar (no look-ahead)
+        for i in range(n):
+            if histogram[i] is None:
+                continue
+            start = max(0, i - HIST_WINDOW + 1)
+            valid = [v for v in histogram[start:i+1] if v is not None]
+            if len(valid) >= 5:
+                hist_lo[i] = min(valid)
+                hist_hi[i] = max(valid)
         
         return {"macd": macd_line, "signal": signal, "histogram": histogram,
                 "hist_lo": hist_lo, "hist_hi": hist_hi}
@@ -474,9 +489,9 @@ class MACD(BaseTechnicalIndicator):
         macd_val = data["macd"][idx]
         sig_val  = data["signal"][idx]
 
-        # O(1): read pre-computed hist stats
-        lo  = data.get("hist_lo")
-        hi  = data.get("hist_hi")
+        # Use per-bar hist stats (no look-ahead)
+        lo  = data["hist_lo"][idx]
+        hi  = data["hist_hi"][idx]
         cur = hist_series[idx]
         hist_pct = (((cur - lo) / (hi - lo) * 100.0)
                     if (lo is not None and hi is not None
@@ -698,7 +713,7 @@ class ATR(BaseTechnicalIndicator):
         out = [None] * n
         if n <= self.period:
             return {"atr_vals": out, "atr_pct": [],
-                    "hist_lo": None, "hist_hi": None}
+                    "hist_lo": [None] * n, "hist_hi": [None] * n}
         
         # Calculate True Range
         tr = []
@@ -715,15 +730,26 @@ class ATR(BaseTechnicalIndicator):
             out[j + 1] = val
         
         # Pre-compute ATR% hist stats so classify() is O(1)
+        # Compute per-bar ATR%
         atr_pct = [(out[i] / closes[i] * 100.0)
                 if (out[i] is not None and closes[i]) else None
                 for i in range(len(out))]
-        w = min(HIST_WINDOW, len(atr_pct))
-        valid_p = [v for v in atr_pct[-w:] if v is not None]
+        
+        # ROLLING hist stats per bar
+        hist_lo = [None] * n
+        hist_hi = [None] * n
+        for i in range(n):
+            if atr_pct[i] is None:
+                continue
+            start = max(0, i - HIST_WINDOW + 1)
+            valid = [v for v in atr_pct[start:i+1] if v is not None]
+            if len(valid) >= 5:
+                hist_lo[i] = min(valid)
+                hist_hi[i] = max(valid)
         
         return {"atr_vals": out, "atr_pct": atr_pct,
-                "hist_lo": min(valid_p) if valid_p else None,
-                "hist_hi": max(valid_p) if valid_p else None}
+                "hist_lo": hist_lo,
+                "hist_hi": hist_hi}
 
     # =============================================================================
     # ATR.classify  -  ATR% relative to stock's own 1-year ATR% range
@@ -750,8 +776,8 @@ class ATR(BaseTechnicalIndicator):
         atr_pct  = (atr_val / close) * 100.0 if close else 0.0
 
         # Read pre-computed hist stats - O(1)
-        lo  = data.get("hist_lo") if isinstance(data, dict) else None
-        hi  = data.get("hist_hi") if isinstance(data, dict) else None
+        lo  = data["hist_lo"][idx] if isinstance(data, dict) else None
+        hi  = data["hist_hi"][idx] if isinstance(data, dict) else None
         cur = data.get("atr_pct", [None])[idx] if isinstance(data, dict) else None
         hist_pct = ((cur - lo) / (hi - lo) * 100.0
                     if (lo is not None and hi is not None and hi - lo > 1e-9 and cur is not None)
@@ -932,7 +958,7 @@ class ADX(BaseTechnicalIndicator):
         minus_di = [0.0] * n
         if n < p * 2 + 2:
             return {"adx": adx_vals, "+di": plus_di, "-di": minus_di,
-                    "hist_lo": None, "hist_hi": None}
+                    "hist_lo": [None] * n, "hist_hi": [None] * n}
 
         # compute True Range and directional movement once
         tr  = [0.0] * (n - 1)
@@ -963,7 +989,7 @@ class ADX(BaseTechnicalIndicator):
 
         if len(dx_list) < p:
             return {"adx": adx_vals, "+di": plus_di, "-di": minus_di,
-                    "hist_lo": None, "hist_hi": None}
+                    "hist_lo": [None] * n, "hist_hi": [None] * n}
 
         adx_smooth = sum(dx_list[:p]) / p
         idx = p * 2
@@ -979,12 +1005,21 @@ class ADX(BaseTechnicalIndicator):
                 minus_di[idx] = mdi
         
         # Pre-compute ADX hist stats so classify() is O(1)
-        w       = min(HIST_WINDOW, len(adx_vals))
-        valid_a = [v for v in adx_vals[-w:] if v is not None]
+        # Compute ROLLING hist stats for each bar
+        hist_lo = [None] * n
+        hist_hi = [None] * n
+        for i in range(n):
+            if adx_vals[i] == 0.0:
+                continue
+            start = max(0, i - HIST_WINDOW + 1)
+            valid = [v for v in adx_vals[start:i+1] if v is not None and v > 0]
+            if len(valid) >= 5:
+                hist_lo[i] = min(valid)
+                hist_hi[i] = max(valid)
         
         return {"adx": adx_vals, "+di": plus_di, "-di": minus_di,
-                "hist_lo": min(valid_a) if valid_a else None,
-                "hist_hi": max(valid_a) if valid_a else None}
+                "hist_lo": hist_lo,
+                "hist_hi": hist_hi}
 
     # =============================================================================
     # ADX.classify  -  trend strength relative to stock's own 1-year ADX range,
@@ -1011,9 +1046,9 @@ class ADX(BaseTechnicalIndicator):
         pdi = data["+di"][idx]
         mdi = data["-di"][idx]
 
-        # O(1): read pre-computed hist stats
-        lo  = data.get("hist_lo")
-        hi  = data.get("hist_hi")
+        # Use per-bar hist stats
+        lo  = data["hist_lo"][idx]
+        hi  = data["hist_hi"][idx]
         cur = adx_series[idx]
         hist_pct = (((cur - lo) / (hi - lo) * 100.0)
                     if (lo is not None and hi is not None
@@ -1493,12 +1528,22 @@ class AnnualizedVolatility(BaseTechnicalIndicator):
             mu = sum(rets) / len(rets)
             var = sum((r - mu) ** 2 for r in rets) / (len(rets) - 1)
             out[i] = math.sqrt(var) * math.sqrt(252) * 100
-        # Pre-compute hist stats so classify() is O(1)
-        w       = min(HIST_WINDOW, len(out))
-        valid_h = [v for v in out[-w:] if v is not None]
+        
+        # ROLLING hist stats per bar
+        hist_lo = [None] * n
+        hist_hi = [None] * n
+        for i in range(n):
+            if out[i] is None:
+                continue
+            start = max(0, i - HIST_WINDOW + 1)
+            valid = [v for v in out[start:i+1] if v is not None]
+            if len(valid) >= 5:
+                hist_lo[i] = min(valid)
+                hist_hi[i] = max(valid)
+        
         return {"vals": out,
-                "hist_lo": min(valid_h) if valid_h else None,
-                "hist_hi": max(valid_h) if valid_h else None}
+                "hist_lo": hist_lo,
+                "hist_hi": hist_hi}
 
     # =============================================================================
     # AnnualizedVolatility.classify  -  relative to stock's own 1-year vol range
@@ -1517,10 +1562,10 @@ class AnnualizedVolatility(BaseTechnicalIndicator):
 
         vol = series[idx]
         # O(1): read pre-computed hist stats from compute() cache
-        lo       = data.get("hist_lo") if isinstance(data, dict) else None
-        hi       = data.get("hist_hi") if isinstance(data, dict) else None
-        _vals    = data.get("vals") if isinstance(data, dict) else data
-        _cur     = _vals[idx] if (_vals and idx < len(_vals)) else None
+        # Use per-bar hist stats (no look-ahead)
+        lo       = data["hist_lo"][idx] if isinstance(data, dict) else None
+        hi       = data["hist_hi"][idx] if isinstance(data, dict) else None
+        _cur     = series[idx]
         hist_pct = (((_cur - lo) / (hi - lo) * 100.0)
                     if (lo is not None and hi is not None
                         and hi - lo > 1e-9 and _cur is not None)
@@ -1534,7 +1579,7 @@ class AnnualizedVolatility(BaseTechnicalIndicator):
                 return {"verdict": f"High ({vol:.1f}%)",        "score": 25, "color": CLR.R,  "result": {"volatility": vol}}
             else:          return {"verdict": f"Very High ({vol:.1f}%)",   "score": 5,  "color": CLR.R,  "result": {"volatility": vol}}
 
-        score = 100.0 - hist_pct   # inverted
+        score = 100.0 - hist_pct  # Inverted: low vol = high score
 
         if   hist_pct <= 25:
             label = "Low vol regime"
@@ -2000,7 +2045,7 @@ class BaseFundamentalIndicator(ABC):
         """
         pass
     
-    # ── Convenience accessors ──────────────────────────────
+    # -- Convenience accessors ------------------------------
 
     def get_value(self, stock: Stock) -> Any:
         """Return the raw fundamental value."""
@@ -2511,43 +2556,39 @@ class MarketCap(BaseFundamentalIndicator):
     def classify(self, stock, raw_value=None) -> Verdict:
         cap_data = raw_value if raw_value is not None else self.compute(stock)
         if cap_data is None:
-            return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
+            return {"verdict": "N/A", "score": 50, "color": CLR.DM, "result": {}}
         
-        # String classification (e.g. "LARGE")
         if isinstance(cap_data, str):
             cap_str = cap_data.upper()
             if "LARGE" in cap_str:
-                return {"verdict": "Large Cap", "score": 75, "color": CLR.G,
+                return {"verdict": "Large Cap", "score": 50, "color": CLR.DM,
                         "result": {"classification": cap_data}}
             elif "MID" in cap_str:
-                return {"verdict": "Mid Cap", "score": 50, "color": CLR.Y,
+                return {"verdict": "Mid Cap", "score": 50, "color": CLR.DM,
                         "result": {"classification": cap_data}}
             elif "SMALL" in cap_str:
-                return {"verdict": "Small Cap", "score": 30, "color": CLR.R,
+                return {"verdict": "Small Cap", "score": 50, "color": CLR.DM,
                         "result": {"classification": cap_data}}
             else:
-                return {"verdict": "N/A", "score": 0, "color": CLR.DM,
+                return {"verdict": "N/A", "score": 50, "color": CLR.DM,
                         "result": {"classification": cap_data}}
         
-        # Numeric market cap (from fallback)
+        # Numeric fallback: classify by size but still neutral score
         if isinstance(cap_data, (int, float)):
-            cap = cap_data
-            # Indian market cap in crores? The JSON shows 11644164898816 (~11.6 trillion INR).
-            # Adjust thresholds for Indian stocks if needed.
-            if cap >= 1e12:   # > 1 trillion INR
-                return {"verdict": "Mega/Large Cap", "score": 85, "color": CLR.G,
-                        "result": {"market_cap": cap}}
-            elif cap >= 1e11:  # > 100 billion INR
-                return {"verdict": "Large Cap", "score": 75, "color": CLR.G,
-                        "result": {"market_cap": cap}}
-            elif cap >= 1e10:  # > 10 billion INR
-                return {"verdict": "Mid Cap", "score": 50, "color": CLR.Y,
-                        "result": {"market_cap": cap}}
+            if cap_data >= 1e12:
+                return {"verdict": "Mega/Large Cap", "score": 50, "color": CLR.DM,
+                        "result": {"market_cap": cap_data}}
+            elif cap_data >= 1e11:
+                return {"verdict": "Large Cap", "score": 50, "color": CLR.DM,
+                        "result": {"market_cap": cap_data}}
+            elif cap_data >= 1e10:
+                return {"verdict": "Mid Cap", "score": 50, "color": CLR.DM,
+                        "result": {"market_cap": cap_data}}
             else:
-                return {"verdict": "Small Cap", "score": 30, "color": CLR.R,
-                        "result": {"market_cap": cap}}
+                return {"verdict": "Small Cap", "score": 50, "color": CLR.DM,
+                        "result": {"market_cap": cap_data}}
         
-        return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
+        return {"verdict": "N/A", "score": 50, "color": CLR.DM, "result": {}}
 
 
 class AnalystRecommendation(BaseFundamentalIndicator):
@@ -2803,6 +2844,9 @@ class Stock:
         self._fundamental_raw_cache: Dict[str, Any] = {}
         self._fundamental_cache: Dict[str, Any] = {}
 
+        self.scoreFactors = [cls() for cls in BaseScoreFactor._registry]
+        self._scoreFactor_cache: Dict[str, Any] = {}
+
     @staticmethod
     def _load_single_stock(filepath: str,
                         precompute_mode: PreComputeMode = PreComputeMode.PCM_ALL,
@@ -2927,6 +2971,21 @@ class Stock:
         except KeyError:
             return default
 
+    def get_score_value(self, factor_name: str) -> Optional[float]:
+        """
+        Run a single scoring factor for this stock and return its raw score.
+        Used by ScoreTable to display individual factor values.
+        """
+        # Find the factor class by name
+        for factor_cls in BaseScoreFactor._registry:
+            factor = factor_cls()
+            if factor.name == factor_name:
+                try:
+                    return factor.score(self)
+                except Exception:
+                    return None
+        return None
+    
     def gate_flags(self, index: int = -1) -> Dict[str, bool]:
         """
         Compute display-only gate flags for ranking table.
@@ -3219,12 +3278,56 @@ class FundamentalTable:
             rows.append(row)
         _print_table(headers, rows)
 
+class ScoreTable:
+    """Scoring factor summary table — shows raw factor scores for each stock."""
+    
+    DEFAULT_SCORES = [
+        ("Momentum 20",    "momentum_20",     lambda s, n: s.get_score_value(n)),
+        ("Trend MA",       "trend_ma",        lambda s, n: s.get_score_value(n)),
+        ("RSI Quality",    "rsi_quality",     lambda s, n: s.get_score_value(n)),
+        ("Sharpe 20",      "sharpe_20",       lambda s, n: s.get_score_value(n)),
+        ("Volume Trend",   "volume_trend",    lambda s, n: s.get_score_value(n)),
+        ("BB Entry",       "bb_entry",        lambda s, n: s.get_score_value(n)),
+        ("Breakout",       "breakout",        lambda s, n: s.get_score_value(n)),
+        ("Pullback Entry", "pullback_entry",  lambda s, n: s.get_score_value(n)),
+        ("Crossover",      "crossover",       lambda s, n: s.get_score_value(n)),
+        ("Overextension",  "overextension",   lambda s, n: s.get_score_value(n)),
+        ("Pivot Proximity","pivot_proximity", lambda s, n: s.get_score_value(n)),
+        ("Fib Retrace",    "fib_retrace",     lambda s, n: s.get_score_value(n)),
+        ("Gate Strength",  "gate_strength",   lambda s, n: s.get_score_value(n)),
+        ("Bullish Setup",  "bullish_setup",   lambda s, n: s.get_score_value(n)),
+    ]
+
+    @classmethod
+    def print_summary(cls, stocks: List[Stock], scores=None) -> None:
+        if scores is None:
+            scores = cls.DEFAULT_SCORES
+
+        headers = ["Symbol"] + [h for h, _, _ in scores]
+        rows = []
+
+        for stock in stocks:
+            row = [stock.symbol]
+            for _, name, fmt in scores:
+                try:
+                    val = fmt(stock, name)
+                    if val is None:
+                        cell = " N/A "
+                    elif isinstance(val, float):
+                        cell = f"{val:.1f}"  # Scores are 0-100, not percentages
+                    else:
+                        cell = str(val)
+                except Exception:
+                    cell = "N/A"
+                row.append(cell)
+            rows.append(row)
+        _print_table(headers, rows)
 
 # =============================================================================
 # SCORING ENGINE  - portfolio_bot-style cross-section normalised ranking
 # =============================================================================
 # Architecture
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # BaseScoreFactor.score(stock, index) → Optional[float]  (raw, un-normalised)
 #   Derived composite scoring functions that combine raw indicator values into
 #   a single float optimised for cross-section ranking.  Unlike Indicators
@@ -3246,22 +3349,23 @@ class FundamentalTable:
 #   Blend   : (1-fw)*TA + fw*FA.
 # =============================================================================
 
-# Default factor weights (sum = 1.0)
 FACTOR_WEIGHTS: Dict[str, float] = {
-    "momentum_20":     0.14,
+    "momentum_20":     0.0,   # KILLED - predicts reversal
+    "sharpe_20":       0.0,   # KILLED - high sharpe = recent strength = reversal
+    "breakout":        0.0,   # KILLED - breakout already happened
     "trend_ma":        0.10,
     "rsi_quality":     0.10,
-    "sharpe_20":       0.08,
-    "crossover":       0.12,
-    "volume_trend":    0.04,
-    "bb_entry":        0.08,
-    "breakout":        0.08,
-    "pullback_entry":  0.08,
-    "overextension":   0.08,
+    "crossover":       0.10,
+    "volume_trend":    0.05,
+    "bb_entry":        0.15,
+    "pullback_entry":  0.15,
+    "overextension":   0.10,
     "pivot_proximity": 0.05,
     "fib_retrace":     0.05,
-    "bullish_setup":   0.0,   # NEW – confirmation quality
+    "bullish_setup":   0.10,
+    "gate_strength":   0.05,
 }
+# Sum of active weights = 1.00
 
 # Default fundamental sub-category weights (sum = 1.0)
 FUNDAMENTAL_SUB_WEIGHTS: Dict[str, float] = {
@@ -3304,6 +3408,30 @@ def xnorm(vals: Dict[str, Optional[float]]) -> Dict[str, float]:
         for k, v in vals.items()
     }
 
+def winsorize(values: List[Optional[float]], lower_pct: float = 2.5, upper_pct: float = 97.5) -> List[Optional[float]]:
+    """
+    Clip extreme outliers to prevent one stock from compressing the entire distribution.
+    Values below the lower percentile are raised; values above the upper percentile are reduced.
+    
+    Example: A stock with P/E 2,500 in a universe where most P/Es are 10-50 would
+    be clipped to the 97.5th percentile (~50), preventing it from flattening the
+    normalized distribution for all other stocks.
+    """
+    valid = [v for v in values if v is not None]
+    n = len(valid)
+    if n < 10:
+        return values  # Not enough data to safely winsorize
+    
+    sorted_vals = sorted(valid)
+    
+    # Safe array bounds with max/min guards
+    lo_idx = max(0, min(n - 1, int(n * lower_pct / 100)))
+    hi_idx = max(0, min(n - 1, int(n * upper_pct / 100)))
+    
+    lo = sorted_vals[lo_idx]
+    hi = sorted_vals[hi_idx]
+    
+    return [lo if v is not None and v < lo else (hi if v is not None and v > hi else v) for v in values]
 
 # ---------------------------------------------------------------------------
 # Shared helpers used by factor implementations
@@ -3428,16 +3556,18 @@ class TrendMAFactor(BaseScoreFactor):
 
 class RSIQualityFactor(BaseScoreFactor):
     """
-    Continuous RSI scoring: piecewise linear mapping to 0-100.
-    
-    Zone mapping:
-    - RSI 0-30: Linear from 100 (RSI=0) to 90 (RSI=30) - deep oversold is best
-    - RSI 30-40: Linear from 90 (RSI=30) to 80 (RSI=40) - recovering from oversold
-    - RSI 40-50: Linear from 80 (RSI=40) to 95 (RSI=50) - approaching sweet spot
-    - RSI 50-65: Linear from 95 (RSI=50) to 100 (RSI=60) then down to 90 (RSI=65)
-    - RSI 65-75: Linear from 90 (RSI=65) to 50 (RSI=75) - getting overbought
-    - RSI 75-85: Linear from 50 (RSI=75) to 10 (RSI=85) - overbought
-    - RSI 85-100: Linear from 10 (RSI=85) to 0 (RSI=100) - extreme overbought
+    Continuous RSI scoring using a sigmoid (S-curve) function.
+
+    The sigmoid is centered at a market-cap-adjusted midpoint:
+      - Small caps:  mid=50,  steepness=0.12  (wider acceptance)
+      - Large caps:  mid=45,  steepness=0.15  (tighter acceptance)
+      - Default:     mid=47,  steepness=0.13
+
+    Score ranges smoothly from ~100 (deeply oversold) to ~0 (extremely
+    overbought). No piecewise boundaries — a small RSI change always
+    produces a proportional score change.
+
+    Formula:  score = 100 / (1 + exp((RSI - midpoint) * steepness))
     """
     @property
     def name(self):
@@ -3451,37 +3581,20 @@ class RSIQualityFactor(BaseScoreFactor):
             # Get market cap for adjusted thresholds
             cap = stock.metadata.get("capital", "").upper()
             if "SMALL" in cap:
-                sweet_low, sweet_high = 35, 70  # Wider sweet spot
+                sweet_mid = 50  # Center of sweet spot for small caps
+                steepness = 0.12
             elif "LARGE" in cap:
-                sweet_low, sweet_high = 45, 60  # Tighter sweet spot
+                sweet_mid = 45  # Center for large caps
+                steepness = 0.15
             else:
-                sweet_low, sweet_high = 40, 65  # Default
+                sweet_mid = 47
+                steepness = 0.13
             
-            # Piecewise linear scoring
-            if rsi_v <= sweet_low - 10:
-                # Deep oversold: 100 at RSI=0, 90 at RSI=sweet_low-10
-                return 100.0 - (rsi_v / (sweet_low - 10)) * 10.0
-            elif rsi_v <= sweet_low:
-                # Oversold recovery: 90 to 80
-                return 90.0 - ((rsi_v - (sweet_low - 10)) / 10) * 10.0
-            elif rsi_v <= (sweet_low + sweet_high) / 2:
-                # Approaching sweet spot center: 80 to 100
-                midpoint = (sweet_low + sweet_high) / 2
-                return 80.0 + ((rsi_v - sweet_low) / (midpoint - sweet_low)) * 20.0
-            elif rsi_v <= sweet_high:
-                # Upper sweet spot: 100 down to 90
-                midpoint = (sweet_low + sweet_high) / 2
-                return 100.0 - ((rsi_v - midpoint) / (sweet_high - midpoint)) * 10.0
-            elif rsi_v <= sweet_high + 10:
-                # Getting overbought: 90 to 50
-                return 90.0 - ((rsi_v - sweet_high) / 10) * 40.0
-            elif rsi_v <= sweet_high + 20:
-                # Overbought: 50 to 10
-                return 50.0 - ((rsi_v - (sweet_high + 10)) / 10) * 40.0
-            else:
-                # Extreme overbought: 10 to 0
-                return max(0.0, 10.0 - ((rsi_v - (sweet_high + 20)) / (100 - sweet_high - 20)) * 10.0)
-                
+            # Sigmoid: smooth S-curve centered at sweet_mid
+            # Score 100 when RSI << sweet_mid, Score 0 when RSI >> sweet_mid
+            raw = 100.0 / (1.0 + math.exp((rsi_v - sweet_mid) * steepness))
+            return raw  
+
         except (KeyError, IndexError, TypeError):
             return 50.0
 
@@ -3504,19 +3617,21 @@ class Sharpe20Factor(BaseScoreFactor):
 
 
 class VolumeTrendFactor(BaseScoreFactor):
-    """Volume ratio vs 20-day average, scaled to 0-100."""
     @property
-    def name(self):
-        return "volume_trend"
+    def name(self): return "volume_trend"
 
-    def score(self, stock: Stock, index: int = -1) -> Optional[float]:
-        v   = stock.volumes
-        n   = len(v)
+    def score(self, stock, index=-1):
+        v = stock.volumes
+        n = len(v)
         idx = index if index >= 0 else n + index
         if idx < 20:
             return None
         avg = sum(v[max(0, idx - 19): idx + 1]) / 20
-        return min((v[idx] / avg if avg else 1.0) * 50.0, 100.0)
+        v_ratio = v[idx] / avg if avg else 1.0
+        
+        # Sigmoid centered at 1.0 (average volume)
+        # 0.5x = ~35, 1x = 50, 2x = ~73, 3x = ~88, 5x = ~98
+        return 100.0 / (1.0 + math.exp(-(v_ratio - 1.0) * 1.5))
 
 
 class BBEntryFactor(BaseScoreFactor):
@@ -3831,52 +3946,142 @@ class PivotProximityFactor(BaseScoreFactor):
 
 
 class FibRetraceFactor(BaseScoreFactor):
-    """Fibonacci retracement zone score. Delegates to cached Fibonacci indicator."""
-    @property
-    def name(self):
-        return "fib_retrace"
+    """
+    Fibonacci retracement zone quality for cross-sectional ranking.
 
-    def score(self, stock: Stock, index: int = -1) -> Optional[float]:
+    Recalculates the retracement percentage and score from raw indicator
+    data rather than pulling from FibonacciLevels.classify(). This keeps
+    the factor independent of display-layer changes and ensures the
+    scoring is always continuous (no flattened tiers).
+    
+    Optimal zone: 38.2%–61.8% retracement (the "golden pocket").
+    """
+    @property
+    def name(self): return "fib_retrace"
+
+    def score(self, stock, index=-1):
         try:
-            fib_list = stock.get_indicator("FibLevels(126)")
+            fib = stock.get_indicator("FibLevels(126)")
             n = len(stock.closes)
             idx = index if index >= 0 else n + index
-            if idx >= len(fib_list) or not fib_list[idx]:
+            if idx >= len(fib) or not fib[idx]:
                 return 50.0
+            
+            # Pull the already-computed score from the indicator
+            hi = fib[idx]["hi"]
+            lo = fib[idx]["lo"]
             px = stock.closes[idx]
-            hi = fib_list[idx]["hi"]
-            lo = fib_list[idx]["lo"]
             if hi is None or lo is None or hi == lo:
                 return 50.0
+            
             retrace = (hi - px) / (hi - lo) * 100.0
-            if retrace < 2:    return 5.0
-            elif retrace < 15:
-                return 30.0
-            elif retrace < 30:
-                return 55.0
-            elif retrace < 45:
-                return 90.0
-            elif retrace < 55:
-                return 85.0
-            elif retrace < 70:
-                return 60.0
-            elif retrace < 85:
-                return 30.0
-            else:              return 10.0
-        except (KeyError, IndexError, TypeError):
+            
+            # Continuous scoring (same as indicator, not flattened)
+            if retrace <= 0:       return 5.0
+            elif retrace < 23.6:   return 5.0 + (retrace / 23.6) * 30.0
+            elif retrace < 38.2:   return 35.0 + ((retrace - 23.6) / 14.6) * 25.0
+            elif retrace <= 50:    return 60.0 + ((retrace - 38.2) / 11.8) * 30.0
+            elif retrace <= 61.8:  return 90.0 - ((retrace - 50.0) / 11.8) * 10.0
+            elif retrace <= 78.6:  return 80.0 - ((retrace - 61.8) / 16.8) * 25.0
+            elif retrace <= 100:   return 55.0 - ((retrace - 78.6) / 21.4) * 30.0
+            else:                  return max(0, 25.0 - ((retrace - 100) / 27.2) * 25.0)
+        except:
             return 50.0
 
 
+class GateStrengthFactor(BaseScoreFactor):
+    """
+    Continuous gate strength for cross-sectional ranking.
+
+    Converts the six gate conditions into smooth 0-100 scores using
+    sigmoid functions instead of binary thresholds. This eliminates
+    the hard cutoff problem (e.g., RSI 29.9 vs 30.1).
+
+    Components:
+      - Momentum: 20-day return → sigmoid centered at 0%
+      - Trend: distance from SMA20 → sigmoid centered at 0%
+      - ADX: trend strength → sigmoid centered at ADX 25
+      - MFI: inverted money flow → sigmoid centered at MFI 50
+      - Ichimoku: cloud position → categorical (80/50/20)
+      - BB Squeeze: active → 100 if squeezing
+    """
+    @property
+    def name(self): return "gate_strength"
+
+    def score(self, stock, index=-1):
+        c = stock.closes
+        n = len(c)
+        if n < 20:
+            return None
+        
+        idx = index if index >= 0 else n + index
+        strengths = []
+        
+        # Momentum: sigmoid around 0% return
+        m20 = _rolling_ret(c, 20, idx)
+        if m20 is not None:
+            mom = 100.0 / (1.0 + math.exp(-m20 * 0.3))
+            strengths.append(mom)
+        
+        # Trend: sigmoid around 0% deviation from SMA20
+        s20 = _sma_val(c, 20, idx)
+        if s20 and s20 > 0:
+            dev = (c[idx] / s20 - 1.0) * 100
+            trend = 100.0 / (1.0 + math.exp(-dev * 0.5))
+            strengths.append(trend)
+        
+        # ADX: sigmoid centered at ADX 25
+        try:
+            adx_v = stock.get_indicator("ADX(14)")["adx"][idx]
+            if adx_v is not None:
+                adx = 100.0 / (1.0 + math.exp(-(adx_v - 25) * 0.1))
+                strengths.append(adx)
+        except: pass
+        
+        # MFI: sigmoid centered at MFI 50 (lower MFI = higher score)
+        try:
+            mfi_v = stock.get_indicator("MFI(14)")[idx]
+            if mfi_v is not None:
+                mfi = 100.0 / (1.0 + math.exp((mfi_v - 50) * 0.08))
+                strengths.append(mfi)
+        except: pass
+        
+        # Ichimoku: cloud position
+        try:
+            ichi = stock.get_indicator("Ichimoku")
+            cloud_pos = ichi.get("cloud_pos", "")
+            if isinstance(cloud_pos, list):
+                pos = str(cloud_pos[idx]) if idx < len(cloud_pos) else ""
+            else:
+                pos = str(cloud_pos)
+            if "Above" in pos: strengths.append(80.0)
+            elif "Inside" in pos: strengths.append(50.0)
+            elif "Below" in pos: strengths.append(20.0)
+        except: pass
+        
+        # BB Squeeze: bonus when active
+        try:
+            ttm = stock.get_indicator("TTM_Squeeze")
+            squeeze_series = ttm["squeeze"]
+            if idx < len(squeeze_series) and squeeze_series[idx]:
+                strengths.append(100.0)
+        except: pass
+        
+        if not strengths:
+            return 50.0
+        
+        return sum(strengths) / len(strengths)
+
 class BullishSetupFactor(BaseScoreFactor):
     """
-    Quality of the bullish reversal setup.
+    Quality of the bullish reversal setup for cross-sectional ranking.
 
     Combines three conditions identified as critical for a successful bounce:
-      1. ADX direction: +DI > -DI (uptrend or trend turning bullish).
-      2. CandleScore >= 3 (bullish pattern confirmation).
-      3. Ret(5) not extended (not chasing a recent run-up).
-
-    Returns a continuous 0-100 score. Higher = perfect setup.
+      1. ADX direction: +DI > -DI (bullish trend alignment)
+      2. CandleScore: uses the indicator's own classify score (0-100)
+      3. Ret(5) extension: rewards pullbacks, penalizes recent run-ups
+    
+    Each component is scored 0-100, then averaged equally.
     """
     @property
     def name(self): return "bullish_setup"
@@ -3893,8 +4098,7 @@ class BullishSetupFactor(BaseScoreFactor):
             pdi = adx_data["+di"][idx]
             mdi = adx_data["-di"][idx]
             if pdi is not None and mdi is not None and pdi > mdi:
-                # Stronger bullish bias → higher score
-                adx_score = min(100.0, (pdi - mdi) * 5.0)
+                adx_score = 100.0 / (1.0 + math.exp(-(pdi - mdi) * 0.3))
         except:
             pass
 
@@ -3905,8 +4109,7 @@ class BullishSetupFactor(BaseScoreFactor):
             cs_vals = cs_data.get("vals", []) if isinstance(cs_data, dict) else cs_data
             cs_val = cs_vals[idx] if idx < len(cs_vals) else None
             if cs_val is not None and cs_val >= 3:
-                # +3 → 60, +5 → 100
-                candle_score = min(100.0, cs_val * 20.0)
+                candle_score = min(100.0, cs_val * 20.0)  # +3→60, +5→100
         except:
             pass
 
@@ -3917,13 +4120,7 @@ class BullishSetupFactor(BaseScoreFactor):
             ret5_vals = ret5_data.get("vals", []) if isinstance(ret5_data, dict) else ret5_data
             ret5 = ret5_vals[idx] if idx < len(ret5_vals) else None
             if ret5 is not None:
-                if ret5 <= -5:
-                    ret5_score = 100.0
-                elif ret5 <= 5:
-                    # Linear: -5→100, +5→0
-                    ret5_score = 100.0 - (ret5 + 5) * 10.0
-                else:
-                    ret5_score = 0.0
+                ret5_score = 100.0 / (1.0 + math.exp(ret5 * 0.3))
         except:
             pass
 
@@ -4048,7 +4245,7 @@ class RankingTable:
 
         if xnorm_mode:
 
-            # ── Legend ──────────────────────────────────────────────
+            # -- Legend ----------------------------------------------
             print(f"\n{CLR.BD}Gate Flags:{CLR.E}")
             print(f"  {CLR.G}M{CLR.E} = Momentum (20d return > 0)")
             print(f"  {CLR.G}T{CLR.E} = Trend (price > SMA20 or oversold recovery)")
@@ -4109,6 +4306,10 @@ class StockReporter:
     def print_fundamental_summary(self, fundamentals=None):
         """Print table of fundamental metrics."""
         FundamentalTable.print_summary(self.stocks, fundamentals)
+
+    def print_scoreFactor_summary(self, scoreFactors=None):
+        """Print table of fundamental metrics."""
+        ScoreTable.print_summary(self.stocks, scoreFactors)
 
     def print_full_report(self, stock: Stock):
         """Detailed, color-coded single-stock report."""
@@ -4206,6 +4407,9 @@ class Stonks:
     def fundamental_summary(self):
         self.reporter.print_fundamental_summary()
 
+    def score_summary(self):
+        ScoreTable.print_summary(self.stocks)
+    
     def full_report(self, symbol: str):
         stock = next((s for s in self.stocks if s.symbol.upper() == symbol.upper()), None)
         if stock is None:
@@ -4238,7 +4442,7 @@ class Stonks:
         fweights = factor_weights or FACTOR_WEIGHTS
         sfw   = fundamental_sub_weights or FUNDAMENTAL_SUB_WEIGHTS
 
-        # ── Pass 1: collect raw factor scores for all stocks ──────────
+        # -- Pass 1: collect raw factor scores for all stocks ----------
         raw_scores: Dict[str, Dict[str, Optional[float]]] = {
             fname: {} for fname in fweights
         }
@@ -4255,12 +4459,12 @@ class Stonks:
                 except Exception:
                     raw_scores[factor.name][stock.symbol] = None
 
-        # ── Normalise each factor column ─────────────────────────────
+        # -- Normalise each factor column -----------------------------
         normed: Dict[str, Dict[str, float]] = {
             fname: xnorm(col) for fname, col in raw_scores.items()
         }
 
-        # ── Fundamental sub-scores (cross-section normalised) ────────
+        # -- Fundamental sub-scores (cross-section normalised) --------
         fund_raw: Dict[str, Dict[str, Optional[float]]] = {
             sub: {} for sub in sfw
         }
@@ -4270,15 +4474,22 @@ class Stonks:
                 for sub, val in sub_scores.items():
                     if sub in fund_raw:
                         fund_raw[sub][stock.symbol] = val
+            
+            # Winsorize before normalization to prevent outlier compression
+            for sub in fund_raw:
+                symbols = list(fund_raw[sub].keys())
+                values = [fund_raw[sub][s] for s in symbols]
+                winsorized = winsorize(values)
+                for s, v in zip(symbols, winsorized):
+                    fund_raw[sub][s] = v
+            
             fund_normed = {sub: xnorm(col) for sub, col in fund_raw.items()}
-        else:
-            fund_normed = {}
 
-        # ── Normalise sub-weights so they sum to 1 ────────────────────
+        # -- Normalise sub-weights so they sum to 1 --------------------
         fw_total   = sum(fweights.values()) or 1.0
         sfw_total  = sum(sfw.values()) or 1.0
 
-        # ── Pass 2: Compute TA composite (weighted sum of normalised scores) ─────
+        # -- Pass 2: Compute TA composite (weighted sum of normalised scores) -----
         results = []
         _single = len(self.stocks) == 1
         for stock in self.stocks:
@@ -4287,7 +4498,6 @@ class Stonks:
             # TA composite
             # Single-stock: xnorm collapses every factor to 50 (lo==hi).
             # Use raw factor scores directly so the result is meaningful.
-            #_single = len(self.stocks) == 1
             ta_comp = sum(
                 (fweights[fname] / fw_total) * (
                     raw_scores[fname].get(sym, 50.0)
@@ -4297,12 +4507,12 @@ class Stonks:
                 for fname in fweights
             )
             ta_comp += BonusComputer.compute(stock)
+            ta_comp = max(0.0, min(100.0, ta_comp))
 
             # FA composite
             fa_comp = 0.0
             if fund_weight > 0 and fund_normed:
                 # Single-stock: bypass xnorm, use raw sub-scores directly.
-                #_single_fa = len(self.stocks) == 1
                 fa_comp = sum(
                     (sfw[sub] / sfw_total) * (
                         fund_raw[sub].get(sym, 50.0)
@@ -4317,6 +4527,7 @@ class Stonks:
                 overall = (((1.0 - fund_weight) * ta_comp) + (fund_weight * fa_comp))
             else:
                 overall = ta_comp
+            overall = max(0.0, min(100.0, overall))
 
             # Gate flags
             gates = stock.gate_flags()
@@ -4325,13 +4536,21 @@ class Stonks:
                 "overall":         round(overall, 1),
                 "ta_composite":    round(ta_comp,  1),
                 "fa_composite":    round(fa_comp,  1),
+                "factor_detail":   {  # Optional: useful for backtest analysis
+                    fname: {
+                        "raw":    raw_scores[fname].get(sym),
+                        "normed": normed[fname].get(sym, 50.0),
+                        "weight": fweights.get(fname, 0),
+                    }
+                    for fname in fweights
+                },
                 **gates,
             }))
 
         results.sort(key=lambda x: x[1]["overall"], reverse=True)
         return results
 
-     # ── Public ranking call (uses the normalised ranking) ────────────
+     # -- Public ranking call (uses the normalised ranking) ------------
 
     def ranking(self,
                 tech_weight: float = 0.5,
@@ -4411,6 +4630,7 @@ def main():
         # Directory → both summary tables
         app.technical_summary()
         app.fundamental_summary()
+        app.score_summary()
 
 if __name__ == "__main__":
     main()
