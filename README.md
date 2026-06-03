@@ -158,7 +158,9 @@ python kite.py --job enriched.json --output-dir candles --days 500
 python stonks.py candles/ -r --tech-weight 0.85 --fund-weight 0.15
 ```
 
-> **NOTE**: Running randomized analysis of 750 stocks with over 1200 daily candle history we have a **win ratio of less than 30% for the top 10 ranked stocks !!** . This is pretty much useless at this point :)
+> [!CAUTION]
+> Running randomized analysis of 750 stocks with over 1200 daily candle history we have a **win ratio of less than 30% for the top 10 ranked stocks !!** with a 1 month holding period.
+> This is pretty much useless at this point :)
 
 ---
 
@@ -190,7 +192,8 @@ python enrich.py input_job.json output_job.json
 - Fetches **fresh** fundamentals from Yahoo Finance for each symbol (no caching by default).
 - Saves incrementally to `output_job.json` after each symbol (crash-resistant).
 
-> **NOTE**: This script does **not** require existing candle data. It only modifies the job file. Run it once when you create a watchlist, and re-run periodically (e.g., weekly) to refresh fundamentals.
+> [!NOTE]
+> This script does **not** require existing candle data. It only modifies the job file. Run it once when you create a watchlist, and re-run periodically (e.g., weekly) to refresh fundamentals.
 
 **3. Fetch historical candles (`kite.py`)**
 
