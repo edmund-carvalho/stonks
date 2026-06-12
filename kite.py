@@ -347,6 +347,9 @@ def update_metadata_only(tasks, output_dir):
         try:
             with open(filename, 'r') as f:
                 data = json.load(f)
+            if data['metadata'] == metadata :
+                #print(f"no update {symbol} metadata>")
+                continue
             data['metadata'] = metadata
             with open(filename, 'w') as f:
                 json.dump(data, f, indent=2)
