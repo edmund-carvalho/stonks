@@ -31,6 +31,8 @@ from mcp import ClientSession
 from mcp.client.sse import sse_client
 import urllib.request
 import csv
+import re
+import webbrowser
 
 # ----------------------------------------------------------------------
 #  Market schedule constants
@@ -135,7 +137,16 @@ class KiteMCPWrapper:
         self.session = session
         login_result = await session.call_tool("login", arguments={})
         login_msg = login_result.content[0].text
-        print(f"\nACTION REQUIRED: Login here:\n{login_msg}\n")
+        url_match = re.search(r'https?://[^\s)]+', login_msg)
+        if url_match:
+            login_url = url_match.group(0)
+            print(f"Extracted URL: {login_url}")
+            try:
+                browser_launched = webbrowser.open(login_url)
+            except webbrowser.Error as e:
+                print(f"ERROR : {e}")
+        if not url_match or not browser_launched:
+            print(f"\nACTION REQUIRED: Login here:\n{login_msg}\n")
         input("Press Enter AFTER you see 'Success' in your browser...")
         await asyncio.sleep(2)
 
