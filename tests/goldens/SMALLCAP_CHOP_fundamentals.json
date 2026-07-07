@@ -44,12 +44,12 @@
     "verdict": "53.000% high"
   },
   "EarningsDate": {
-    "raw": -344,
+    "raw": -345,
     "result": {
-      "days": -344
+      "days": -345
     },
     "score": 70,
-    "verdict": "344d ago (reported)"
+    "verdict": "345d ago (reported)"
   },
   "EarningsGrowth": {
     "raw": -0.12,

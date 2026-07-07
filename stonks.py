@@ -1414,30 +1414,51 @@ class MonthlyPivotPoints(BaseTechnicalIndicator):
         return "MonthlyPivot"
 
     def compute(self, stock: Stock):
-        monthly = {}
-        for c in stock.candles:
+        """
+        Per-bar pivot levels, derived from each bar's own *completed* prior
+        calendar month rather than the dataset's last available month - a
+        bar dated mid-2024-03 always sees February's pivots, regardless of
+        how much later data the dataset happens to contain. Necessary for
+        historical-index queries (e.g. backtesting) to be look-ahead-safe;
+        `classify(index=-1)` for "today" behaves the same as before.
+        """
+        candles = stock.candles
+        n = len(candles)
+        ym_list: List[str] = [None] * n
+        monthly: Dict[str, Dict[str, float]] = {}
+        for i, c in enumerate(candles):
             ym = c.timestamp.strftime("%Y-%m")
+            ym_list[i] = ym
             if ym not in monthly:
                 monthly[ym] = {"hi": c.high, "lo": c.low, "cl": c.close}
             else:
                 monthly[ym]["hi"] = max(monthly[ym]["hi"], c.high)
                 monthly[ym]["lo"] = min(monthly[ym]["lo"], c.low)
                 monthly[ym]["cl"] = c.close
+
         months = sorted(monthly.keys())
-        if len(months) < 2:
-            return {}
-        prev = monthly[months[-2]]
-        rng = prev["hi"] - prev["lo"]
-        pp = (prev["hi"] + prev["lo"] + prev["cl"]) / 3
-        return {"pp": pp, "r1": pp + 0.382*rng, "r2": pp + 0.618*rng, "r3": pp + rng,
-                "s1": pp - 0.382*rng, "s2": pp - 0.618*rng, "s3": pp - rng, "month": months[-2]}
+        month_rank = {ym: i for i, ym in enumerate(months)}
+
+        out: List[Optional[Dict[str, Any]]] = [None] * n
+        for i in range(n):
+            midx = month_rank[ym_list[i]]
+            if midx == 0:
+                continue  # no completed prior month yet
+            prev = monthly[months[midx - 1]]
+            rng = prev["hi"] - prev["lo"]
+            pp = (prev["hi"] + prev["lo"] + prev["cl"]) / 3
+            out[i] = {"pp": pp, "r1": pp + 0.382*rng, "r2": pp + 0.618*rng, "r3": pp + rng,
+                      "s1": pp - 0.382*rng, "s2": pp - 0.618*rng, "s3": pp - rng,
+                      "month": months[midx - 1]}
+        return out
 
     def classify(self, stock: Stock, index: int = -1) -> Verdict:
         """Continuous pivot zone scoring - optimal: PP to R1."""
-        piv = stock.get_indicator(self.name)
+        piv_per_bar = stock.get_indicator(self.name)
         idx = _norm_index(index, len(stock.closes))
-        if not piv or idx < 0 or idx >= len(stock.closes):
+        if not piv_per_bar or idx < 0 or idx >= len(piv_per_bar) or piv_per_bar[idx] is None:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
+        piv = piv_per_bar[idx]
         px = stock.closes[idx]
         pp = piv["pp"]
         r1 = piv["r1"]
@@ -1516,12 +1537,11 @@ class RollingReturn(BaseTechnicalIndicator):
         for i in range(n):
             if i >= self.period and closes[i - self.period] != 0:
                 out[i] = (closes[i] / closes[i - self.period] - 1) * 100
-        # Pre-compute hist stats so classify() is O(1)
-        w       = min(HIST_WINDOW, len(out))
-        valid_h = [v for v in out[-w:] if v is not None]
-        return {"vals": out,
-                "hist_lo": min(valid_h) if valid_h else None,
-                "hist_hi": max(valid_h) if valid_h else None}
+        # Rolling hist stats per bar - see rolling_min_max(). A scalar over
+        # the last HIST_WINDOW bars of the whole series would leak future
+        # data into every historical classify() call; this doesn't.
+        hist_lo, hist_hi = rolling_min_max(out, HIST_WINDOW)
+        return {"vals": out, "hist_lo": hist_lo, "hist_hi": hist_hi}
 
     # =============================================================================
     # RollingReturn.classify  -  return relative to stock's own 1-year return range
@@ -1542,9 +1562,9 @@ class RollingReturn(BaseTechnicalIndicator):
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
 
         ret = series[idx]
-        # O(1): read pre-computed hist stats from compute() cache
-        lo       = data.get("hist_lo") if isinstance(data, dict) else None
-        hi       = data.get("hist_hi") if isinstance(data, dict) else None
+        # O(1): read pre-computed per-bar hist stats (no look-ahead)
+        lo       = data["hist_lo"][idx] if isinstance(data, dict) else None
+        hi       = data["hist_hi"][idx] if isinstance(data, dict) else None
         _vals    = data.get("vals") if isinstance(data, dict) else data
         _cur     = _vals[idx] if (_vals and idx < len(_vals)) else None
         hist_pct = (((_cur - lo) / (hi - lo) * 100.0)
@@ -1801,12 +1821,11 @@ class CandleScore(BaseTechnicalIndicator):
         out = [0.0] * n
         for i in range(n):
             out[i] = self._score_at(i, stock)
-        # Pre-compute hist stats so classify() is O(1)
-        w       = min(HIST_WINDOW, len(out))
-        valid_h = [v for v in out[-w:] if v is not None]
-        return {"vals": out,
-                "hist_lo": min(valid_h) if valid_h else None,
-                "hist_hi": max(valid_h) if valid_h else None}
+        # Rolling hist stats per bar - see rolling_min_max(). A scalar over
+        # the last HIST_WINDOW bars of the whole series would leak future
+        # data into every historical classify() call; this doesn't.
+        hist_lo, hist_hi = rolling_min_max(out, HIST_WINDOW)
+        return {"vals": out, "hist_lo": hist_lo, "hist_hi": hist_hi}
 
     def _score_at(self, i, stock):
         """Score a single candle for pattern strength (-5 to +5)."""
@@ -1863,9 +1882,9 @@ class CandleScore(BaseTechnicalIndicator):
             return {"verdict": "No pattern", "score": 50, "color": CLR.DM,
                     "result": {"candle_score": 0}}
 
-        # O(1): read pre-computed hist stats from compute() cache
-        lo       = data.get("hist_lo") if isinstance(data, dict) else None
-        hi       = data.get("hist_hi") if isinstance(data, dict) else None
+        # O(1): read pre-computed per-bar hist stats (no look-ahead)
+        lo       = data["hist_lo"][idx] if isinstance(data, dict) else None
+        hi       = data["hist_hi"][idx] if isinstance(data, dict) else None
         _vals    = data.get("vals") if isinstance(data, dict) else data
         _cur     = _vals[idx] if (_vals and idx < len(_vals)) else None
         hist_pct = (((_cur - lo) / (hi - lo) * 100.0)
@@ -4317,11 +4336,12 @@ class PivotProximityFactor(BaseScoreFactor):
 
     def score(self, stock: Stock, index: int = -1) -> Optional[float]:
         try:
-            piv = stock.get_indicator("MonthlyPivot")
-            if not piv or piv.get("pp") is None:
-                return 50.0
+            piv_per_bar = stock.get_indicator("MonthlyPivot")
             n   = len(stock.closes)
             idx = index if index >= 0 else n + index
+            if not piv_per_bar or idx < 0 or idx >= len(piv_per_bar) or piv_per_bar[idx] is None:
+                return 50.0
+            piv = piv_per_bar[idx]
             px  = stock.closes[idx]
             pp  = piv["pp"]
             r1 = piv["r1"]

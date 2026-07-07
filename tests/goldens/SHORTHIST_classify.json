@@ -269,17 +269,17 @@
   "MonthlyPivot@mid": {
     "color_blanked": true,
     "result": {
-      "month": "2026-05",
-      "pp": 209.096667,
-      "r1": 222.237467,
-      "r2": 230.355867,
-      "r3": 243.496667,
-      "s1": 195.955867,
-      "s2": 187.837467,
-      "s3": 174.696667
+      "month": "2025-12",
+      "pp": 243.533333,
+      "r1": 257.438133,
+      "r2": 266.028533,
+      "r3": 279.933333,
+      "s1": 229.628533,
+      "s2": 221.038133,
+      "s3": 207.133333
     },
-    "score": 13,
-    "verdict": "R2-R3 - strong resistance"
+    "score": 64,
+    "verdict": "S1-PP - pullback to support"
   },
   "Patterns@last": {
     "color_blanked": true,
@@ -331,13 +331,13 @@
   "Ret(5)@mid": {
     "color_blanked": true,
     "result": {
-      "hist_hi": 19.602991,
-      "hist_lo": -23.215196,
-      "hist_pct": 48.045186,
+      "hist_hi": 14.899891,
+      "hist_lo": -12.923662,
+      "hist_pct": 36.949068,
       "return": -2.643118
     },
-    "score": 48,
-    "verdict": "-2.6%  below avg return  (48th pctile of 1yr range -23.2%->+19.6%)"
+    "score": 37,
+    "verdict": "-2.6%  below avg return  (37th pctile of 1yr range -12.9%->+14.9%)"
   },
   "SMA(20)@last": {
     "color_blanked": true,

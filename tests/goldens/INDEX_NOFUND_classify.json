@@ -263,17 +263,17 @@
   "MonthlyPivot@mid": {
     "color_blanked": true,
     "result": {
-      "month": "2026-06",
-      "pp": 23749.833333,
-      "r1": 24204.967233,
-      "r2": 24486.149433,
-      "r3": 24941.283333,
-      "s1": 23294.699433,
-      "s2": 23013.517233,
-      "s3": 22558.383333
+      "month": "2026-01",
+      "pp": 25537.883333,
+      "r1": 26093.082133,
+      "r2": 26436.084533,
+      "r3": 26991.283333,
+      "s1": 24982.684533,
+      "s2": 24639.682133,
+      "s3": 24084.483333
     },
-    "score": 7,
-    "verdict": "Above R3 - extremely extended"
+    "score": 76,
+    "verdict": "PP-R1 - ideal entry zone"
   },
   "Patterns@last": {
     "color_blanked": true,
@@ -321,13 +321,13 @@
   "Ret(5)@mid": {
     "color_blanked": true,
     "result": {
-      "hist_hi": 7.460123,
-      "hist_lo": -5.314217,
-      "hist_pct": 51.560382,
+      "hist_hi": 4.214429,
+      "hist_lo": -2.654672,
+      "hist_pct": 57.168381,
       "return": 1.272282
     },
-    "score": 52,
-    "verdict": "+1.3%  above avg return  (52th pctile of 1yr range -5.3%->+7.5%)"
+    "score": 57,
+    "verdict": "+1.3%  above avg return  (57th pctile of 1yr range -2.7%->+4.2%)"
   },
   "SMA(20)@last": {
     "color_blanked": true,
