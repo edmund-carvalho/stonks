@@ -8,7 +8,7 @@
     "gate_mom": false,
     "gate_trend": false,
     "low_coverage": false,
-    "overall": 87.6,
+    "overall": 100.0,
     "symbol": "SHORTHIST",
     "ta_composite": 58.7
   },
@@ -21,7 +21,7 @@
     "gate_mom": true,
     "gate_trend": true,
     "low_coverage": true,
-    "overall": 51.7,
+    "overall": 50.0,
     "symbol": "INDEX_NOFUND",
     "ta_composite": 55.5
   },
@@ -34,7 +34,7 @@
     "gate_mom": true,
     "gate_trend": true,
     "low_coverage": false,
-    "overall": 41.3,
+    "overall": 38.5,
     "symbol": "LARGECAP_TREND",
     "ta_composite": 47.8
   },
@@ -47,7 +47,7 @@
     "gate_mom": false,
     "gate_trend": true,
     "low_coverage": false,
-    "overall": 22.4,
+    "overall": 14.0,
     "symbol": "SMALLCAP_CHOP",
     "ta_composite": 42.0
   }

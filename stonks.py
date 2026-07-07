@@ -4587,13 +4587,23 @@ class Stonks:
         Normalise: xnorm() each factor column across the universe.
         Pass 2 : weighted TA composite per stock.
         Bonus  : BonusComputer.compute() added after normalisation.
-        Blend  : (1-fund_weight)*TA + fund_weight*FA.
+        Blend  : norm_fund_weight*FA + (1-norm_fund_weight)*TA, where
+                 norm_fund_weight = fund_weight / (tech_weight + fund_weight).
+
+        tech_weight and fund_weight are normalised to sum to 1 (matching
+        the README's documented contract) rather than tech_weight being
+        silently ignored - so the default 0.85/0.15 (already summing to 1)
+        behaves identically to before, and only non-summing-to-1 inputs
+        change behaviour (from "silently used 1-fund_weight regardless of
+        tech_weight" to "both weights actually matter").
 
         fund_weight = 0 → pure technical ranking (default).
-        tech_weight is ignored when fund_weight > 0 (blend is 1-fw / fw).
         """
         if not self.stocks:
             return []
+
+        weight_total = tech_weight + fund_weight
+        fund_weight = (fund_weight / weight_total) if weight_total > 0 else 0.0
 
         fweights = factor_weights or FACTOR_WEIGHTS
         sfw   = fundamental_sub_weights or FUNDAMENTAL_SUB_WEIGHTS
