@@ -26,7 +26,7 @@
     "ta_composite": 55.5
   },
   {
-    "fa_composite": 38.5,
+    "fa_composite": 41.0,
     "gate_adx": true,
     "gate_bb_ttm": false,
     "gate_ichi": true,
@@ -34,12 +34,12 @@
     "gate_mom": true,
     "gate_trend": true,
     "low_coverage": false,
-    "overall": 46.4,
+    "overall": 46.8,
     "symbol": "LARGECAP_TREND",
     "ta_composite": 47.8
   },
   {
-    "fa_composite": 14.0,
+    "fa_composite": 11.5,
     "gate_adx": false,
     "gate_bb_ttm": false,
     "gate_ichi": false,
@@ -47,7 +47,7 @@
     "gate_mom": false,
     "gate_trend": true,
     "low_coverage": false,
-    "overall": 37.8,
+    "overall": 37.4,
     "symbol": "SMALLCAP_CHOP",
     "ta_composite": 42.0
   }

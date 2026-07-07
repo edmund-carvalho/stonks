@@ -31,13 +31,12 @@ stoch_entry     = 0.0   # NEW (Phase 7) - awaiting backtest A/B before earning w
 ha_reversal     = 0.0   # NEW (Phase 7) - awaiting backtest A/B before earning weight
 
 [fundamental_sub_weights]
-f_valuation     = 0.25
+f_valuation     = 0.35
 f_quality       = 0.25
 f_growth        = 0.20
 f_analyst       = 0.15
-f_eps_momentum  = 0.10
 f_earnings_risk = 0.03
-f_ownership     = 0.02
+f_risk          = 0.02
 
 # Overrides --tech-weight/--fund-weight. If present, fund_weight here is
 # authoritative (tech_weight is set to its exact complement, 1 - fund_weight).

@@ -3736,14 +3736,24 @@ FACTOR_WEIGHTS: Dict[str, float] = {
 # Sum of active weights = 1.00
 
 # Default fundamental sub-category weights (sum = 1.0)
+#
+# f_eps_momentum was removed (2026-07-07 ranking review): it was defined
+# as 100% ForwardPE, a verbatim duplicate of f_valuation's ForwardPE
+# member (0.4 weight there) rather than a distinct EPS-revision/estimate-
+# momentum metric - this codebase has no such metric (yfinance doesn't
+# expose one), so the sub-category was double-counting ForwardPE under a
+# misleading name instead of adding information. Its 0.10 weight folded
+# back into f_valuation (0.25 -> 0.35), since that's the only thing it
+# was actually measuring. f_ownership renamed to f_risk: its sole member
+# (Beta) is a volatility/systematic-risk metric, not an ownership-
+# structure one - the old name didn't describe what it measured.
 FUNDAMENTAL_SUB_WEIGHTS: Dict[str, float] = {
-    "f_valuation":     0.25,
+    "f_valuation":     0.35,
     "f_quality":       0.25,
     "f_growth":        0.20,
     "f_analyst":       0.15,
-    "f_eps_momentum":  0.10,
     "f_earnings_risk": 0.03,
-    "f_ownership":     0.02,
+    "f_risk":          0.02,
 }
 
 # Fundamental sub-category -> member metrics + intra-group weights
@@ -3753,9 +3763,8 @@ FUNDAMENTAL_GROUPS: Dict[str, List[Tuple[str, float]]] = {
     "f_quality":       [("ROE", 0.5), ("ProfitMargin", 0.5)],
     "f_growth":        [("RevenueGrowth", 0.4), ("EarningsGrowth", 0.6)],
     "f_analyst":       [("AnalystRec", 0.4), ("TargetUpside", 0.6)],
-    "f_eps_momentum":  [("ForwardPE", 1.0)],
     "f_earnings_risk": [("EarningsDate", 1.0)],
-    "f_ownership":     [("Beta", 1.0)],
+    "f_risk":          [("Beta", 1.0)],
 }
 
 
