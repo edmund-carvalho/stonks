@@ -204,15 +204,15 @@
   "MACD@mid": {
     "color_blanked": true,
     "result": {
-      "hist_hi": 2.608114,
-      "hist_lo": -8.379537,
-      "hist_pct": 73.37202,
+      "hist_hi": 2.975251,
+      "hist_lo": -2.046596,
+      "hist_pct": 34.427992,
       "histogram": -0.317675,
       "macd": 4.043329,
       "signal": 4.361005
     },
-    "score": 73,
-    "verdict": "bearish hist=-0.3177  (73th pctile of 1yr range -8.3795\u21922.6081)"
+    "score": 34,
+    "verdict": "bearish hist=-0.3177  (34th pctile of 1yr range -2.0466\u21922.9753)"
   },
   "MFI(14)@last": {
     "color_blanked": true,

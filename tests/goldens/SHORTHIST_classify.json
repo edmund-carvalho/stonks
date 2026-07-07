@@ -195,27 +195,27 @@
     "color_blanked": true,
     "result": {
       "hist_hi": 5.226779,
-      "hist_lo": -7.205551,
-      "hist_pct": 49.567897,
+      "hist_lo": -5.200149,
+      "hist_pct": 39.868335,
       "histogram": -1.043106,
       "macd": -3.662891,
       "signal": -2.619784
     },
-    "score": 50,
-    "verdict": "bearish hist=-1.0431  (50th pctile of 1yr range -7.2056\u21925.2268)"
+    "score": 40,
+    "verdict": "bearish hist=-1.0431  (40th pctile of 1yr range -5.2001\u21925.2268)"
   },
   "MACD@mid": {
     "color_blanked": true,
     "result": {
-      "hist_hi": 3.440672,
-      "hist_lo": -7.205551,
-      "hist_pct": 93.123254,
-      "histogram": 2.708559,
+      "hist_hi": 3.559086,
+      "hist_lo": -4.789152,
+      "hist_pct": 89.811975,
+      "histogram": 2.708566,
       "macd": -9.621545,
-      "signal": -12.330104
+      "signal": -12.330111
     },
-    "score": 93,
-    "verdict": "bullish hist=2.7086  (93th pctile of 1yr range -7.2056\u21923.4407)"
+    "score": 90,
+    "verdict": "bullish hist=2.7086  (90th pctile of 1yr range -4.7892\u21923.5591)"
   },
   "MFI(14)@last": {
     "color_blanked": true,

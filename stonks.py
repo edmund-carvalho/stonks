@@ -452,12 +452,12 @@ class MACD(BaseTechnicalIndicator):
     def compute(self, stock: Stock):
         closes = stock.closes
         n = len(closes)
-        macd_line = [0.0] * n
-        signal = [0.0] * n
-        histogram = [0.0] * n
+        macd_line = [None] * n
+        signal = [None] * n
+        histogram = [None] * n
         hist_lo = [None] * n
         hist_hi = [None] * n
-        
+
         if n < 26:
             return {"macd": macd_line, "signal": signal, "histogram": histogram,
                     "hist_lo": hist_lo, "hist_hi": hist_hi}

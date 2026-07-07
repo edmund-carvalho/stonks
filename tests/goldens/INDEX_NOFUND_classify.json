@@ -201,15 +201,15 @@
   "MACD@mid": {
     "color_blanked": true,
     "result": {
-      "hist_hi": 182.908383,
+      "hist_hi": 86.659228,
       "hist_lo": -95.805921,
-      "hist_pct": 54.840803,
+      "hist_pct": 83.768963,
       "histogram": 57.043242,
       "macd": -101.810719,
       "signal": -158.85396
     },
-    "score": 55,
-    "verdict": "bullish hist=57.0432  (55th pctile of 1yr range -95.8059\u2192182.9084)"
+    "score": 84,
+    "verdict": "bullish hist=57.0432  (84th pctile of 1yr range -95.8059\u219286.6592)"
   },
   "MFI(14)@last": {
     "color_blanked": true,
