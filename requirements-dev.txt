@@ -1,0 +1,2 @@
+# Dev/test-only dependencies (not needed to run the pipeline itself)
+pytest>=7.0.0

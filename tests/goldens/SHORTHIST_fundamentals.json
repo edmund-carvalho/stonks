@@ -1,0 +1,137 @@
+{
+  "52Week": {
+    "raw": [
+      407.95,
+      162.1,
+      196.79
+    ],
+    "result": {
+      "hi": 407.95,
+      "hi_pct": -51.761245,
+      "lo": 162.1,
+      "lo_pct": 21.40037,
+      "range_pos": 14.11023
+    },
+    "score": 54,
+    "verdict": "High: -51.8% | Low: +21.4% | Range: 14%"
+  },
+  "AnalystRec": {
+    "raw": [
+      null,
+      "none"
+    ],
+    "result": {},
+    "score": 0,
+    "verdict": "N/A"
+  },
+  "Beta": {
+    "raw": null,
+    "result": {},
+    "score": 0,
+    "verdict": "N/A"
+  },
+  "DividendYield": {
+    "raw": null,
+    "result": {},
+    "score": 0,
+    "verdict": "N/A"
+  },
+  "EarningsDate": {
+    "raw": null,
+    "result": {},
+    "score": 0,
+    "verdict": "N/A"
+  },
+  "EarningsGrowth": {
+    "raw": 0.063,
+    "result": {
+      "growth_pct": 6.3
+    },
+    "score": 44,
+    "verdict": "+6.3% flat"
+  },
+  "ExDividendDate": {
+    "raw": null,
+    "result": {},
+    "score": 0,
+    "verdict": "N/A"
+  },
+  "ForwardPE": {
+    "raw": 8.436504,
+    "result": {
+      "pe": 8.436504
+    },
+    "score": 81,
+    "verdict": "cheap (PE=8.4)"
+  },
+  "MarketCap": {
+    "raw": "SMALL",
+    "result": {
+      "classification": "SMALL"
+    },
+    "score": 50,
+    "verdict": "Small Cap"
+  },
+  "P/B": {
+    "raw": 2.238183,
+    "result": {
+      "pb": 2.238183
+    },
+    "score": 78,
+    "verdict": "moderate (P/B=2.24)"
+  },
+  "PEG": {
+    "raw": null,
+    "result": {},
+    "score": 0,
+    "verdict": "N/A"
+  },
+  "PayoutRatio": {
+    "raw": 0.0,
+    "result": {
+      "payout": 0.0
+    },
+    "score": 50,
+    "verdict": "low growth (0.0%)"
+  },
+  "ProfitMargin": {
+    "raw": 0.09796,
+    "result": {
+      "margin_pct": 9.795999
+    },
+    "score": 44,
+    "verdict": "9.8% decent"
+  },
+  "ROE": {
+    "raw": 0.21336,
+    "result": {
+      "roe_pct": 21.336001
+    },
+    "score": 70,
+    "verdict": "21.3% good"
+  },
+  "RevenueGrowth": {
+    "raw": 0.217,
+    "result": {
+      "growth_pct": 21.7
+    },
+    "score": 70,
+    "verdict": "+21.7% good"
+  },
+  "TargetUpside": {
+    "raw": 25.006352,
+    "result": {
+      "upside": 25.006352
+    },
+    "score": 56,
+    "verdict": "+25.0% good upside"
+  },
+  "TrailingPE": {
+    "raw": 14.459221,
+    "result": {
+      "pe": 14.459221
+    },
+    "score": 71,
+    "verdict": "reasonable (PE=14.5)"
+  }
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "fa_composite": 0.0,
+    "gate_adx": false,
+    "gate_bb_ttm": false,
+    "gate_ichi": false,
+    "gate_mfi": true,
+    "gate_mom": false,
+    "gate_trend": false,
+    "overall": 56.7,
+    "symbol": "SHORTHIST",
+    "ta_composite": 56.7
+  },
+  {
+    "fa_composite": 0.0,
+    "gate_adx": false,
+    "gate_bb_ttm": false,
+    "gate_ichi": false,
+    "gate_mfi": false,
+    "gate_mom": true,
+    "gate_trend": true,
+    "overall": 54.6,
+    "symbol": "INDEX_NOFUND",
+    "ta_composite": 54.6
+  },
+  {
+    "fa_composite": 0.0,
+    "gate_adx": true,
+    "gate_bb_ttm": false,
+    "gate_ichi": false,
+    "gate_mfi": true,
+    "gate_mom": true,
+    "gate_trend": true,
+    "overall": 51.0,
+    "symbol": "LARGECAP_TREND",
+    "ta_composite": 51.0
+  },
+  {
+    "fa_composite": 0.0,
+    "gate_adx": false,
+    "gate_bb_ttm": false,
+    "gate_ichi": false,
+    "gate_mfi": true,
+    "gate_mom": false,
+    "gate_trend": true,
+    "overall": 44.6,
+    "symbol": "SMALLCAP_CHOP",
+    "ta_composite": 44.6
+  }
+]

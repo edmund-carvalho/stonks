@@ -1,0 +1,147 @@
+{
+  "52Week": {
+    "raw": [
+      273.1,
+      186.5,
+      206.41
+    ],
+    "result": {
+      "hi": 273.1,
+      "hi_pct": -24.419627,
+      "lo": 186.5,
+      "lo_pct": 10.675603,
+      "range_pos": 22.990762
+    },
+    "score": 63,
+    "verdict": "High: -24.4% | Low: +10.7% | Range: 23%"
+  },
+  "AnalystRec": {
+    "raw": [
+      null,
+      "none"
+    ],
+    "result": {},
+    "score": 0,
+    "verdict": "N/A"
+  },
+  "Beta": {
+    "raw": 0.374,
+    "result": {
+      "beta": 0.374
+    },
+    "score": 88,
+    "verdict": "low risk (0.374)"
+  },
+  "DividendYield": {
+    "raw": 8.32,
+    "result": {
+      "yield_pct": 832.0
+    },
+    "score": 100,
+    "verdict": "832.000% high"
+  },
+  "EarningsDate": {
+    "raw": 9,
+    "result": {
+      "days": 9
+    },
+    "score": 13,
+    "verdict": "in 9d"
+  },
+  "EarningsGrowth": {
+    "raw": -0.016,
+    "result": {
+      "growth_pct": -1.6
+    },
+    "score": 31,
+    "verdict": "-1.6% declining"
+  },
+  "ExDividendDate": {
+    "raw": -162,
+    "result": {
+      "days": -162
+    },
+    "score": 50,
+    "verdict": "162d ago"
+  },
+  "ForwardPE": {
+    "raw": 14.344048,
+    "result": {
+      "pe": 14.344048
+    },
+    "score": 68,
+    "verdict": "reasonable (PE=14.3)"
+  },
+  "MarketCap": {
+    "raw": "LARGE",
+    "result": {
+      "classification": "LARGE"
+    },
+    "score": 50,
+    "verdict": "Large Cap"
+  },
+  "P/B": {
+    "raw": 2.410994,
+    "result": {
+      "pb": 2.410994
+    },
+    "score": 76,
+    "verdict": "moderate (P/B=2.41)"
+  },
+  "PEG": {
+    "raw": 1.39,
+    "result": {
+      "peg": 1.39
+    },
+    "score": 72,
+    "verdict": "fairly valued (PEG=1.39)"
+  },
+  "PayoutRatio": {
+    "raw": 0.8758,
+    "result": {
+      "payout": 0.8758
+    },
+    "score": 43,
+    "verdict": "high (87.6%)"
+  },
+  "ProfitMargin": {
+    "raw": 0.14248,
+    "result": {
+      "margin_pct": 14.248
+    },
+    "score": 54,
+    "verdict": "14.2% decent"
+  },
+  "ROE": {
+    "raw": 0.15487,
+    "result": {
+      "roe_pct": 15.487
+    },
+    "score": 57,
+    "verdict": "15.5% good"
+  },
+  "RevenueGrowth": {
+    "raw": 0.077,
+    "result": {
+      "growth_pct": 7.7
+    },
+    "score": 46,
+    "verdict": "+7.7% flat"
+  },
+  "TargetUpside": {
+    "raw": 1.63025,
+    "result": {
+      "upside": 1.63025
+    },
+    "score": 27,
+    "verdict": "+1.6% modest upside"
+  },
+  "TrailingPE": {
+    "raw": 16.433916,
+    "result": {
+      "pe": 16.433916
+    },
+    "score": 67,
+    "verdict": "reasonable (PE=16.4)"
+  }
+}

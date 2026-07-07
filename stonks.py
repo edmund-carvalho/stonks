@@ -83,6 +83,12 @@ class CLR:
     DM = '\033[2m'    # dim
     E  = '\033[0m'    # reset
 
+    @classmethod
+    def disable(cls):
+        """Blank out every color code (for --no-color / NO_COLOR / test assertions)."""
+        for attr in ("G", "R", "Y", "B", "M", "CY", "W", "BD", "DM", "E"):
+            setattr(cls, attr, "")
+
 
 # =============================================================================
 # TYPE DEFINITIONS
@@ -4594,14 +4600,17 @@ def parse_args():
     parser.add_argument("--fund-weight",   dest="fund_weight", type=float, default=0.15, help="Fundamental weight for ranking")
     parser.add_argument("--from-date",     dest="from_date",   type=str,   default=None, help="Start date (YYYY-MM-DD) for analysis window")
     parser.add_argument("--to-date",       dest="to_date",     type=str,   default=None, help="End date (YYYY-MM-DD) for analysis window")
-    
+    parser.add_argument("--no-color",      dest="no_color",    action="store_true",      help="Disable ANSI color output")
+
     return parser.parse_args()
 
 def main():
 
-    print(_STONKS_BANNER)
-
     args = parse_args()
+    if args.no_color or os.environ.get("NO_COLOR"):
+        CLR.disable()
+
+    print(_STONKS_BANNER)
 
     # Parse dates with IST timezone (matching the candle data)
     ist = timezone(timedelta(hours=5, minutes=30))

@@ -11,6 +11,10 @@ __pycache__/
 .vscode/
 .idea/
 
+# Local Claude Code planning docs
+CLAUDE.md
+PLAN.md
+
 # Environment
 venv/
 env/

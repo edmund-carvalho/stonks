@@ -1,0 +1,349 @@
+{
+  "ADX(14)@last": {
+    "color_blanked": true,
+    "result": {
+      "+di": 21.885479,
+      "-di": 17.577209,
+      "adx": 18.972984,
+      "hist_hi": 47.25442,
+      "hist_lo": 13.020843,
+      "hist_pct": 17.386851
+    },
+    "score": 17,
+    "verdict": "weak trend / BULLISH  ADX=19.0  (17th pctile of 1yr range 13.0\u219247.3)"
+  },
+  "ADX(14)@mid": {
+    "color_blanked": true,
+    "result": {
+      "+di": 21.885479,
+      "-di": 17.577209,
+      "adx": 25.511773,
+      "hist_hi": 47.25442,
+      "hist_lo": 11.942654,
+      "hist_pct": 38.426622
+    },
+    "score": 38,
+    "verdict": "moderate trend / BULLISH  ADX=25.5  (38th pctile of 1yr range 11.9\u219247.3)"
+  },
+  "ATR(14)@last": {
+    "color_blanked": true,
+    "result": {
+      "atr": 12.981821,
+      "atr_pct": 3.410883,
+      "hist_hi": 4.367362,
+      "hist_lo": 2.484332,
+      "hist_pct": 49.205331
+    },
+    "score": 51,
+    "verdict": "Below avg vol  ATR%=3.4%  (49th pctile of 1yr range 2.5%\u21924.4%)"
+  },
+  "ATR(14)@mid": {
+    "color_blanked": true,
+    "result": {
+      "atr": 11.655571,
+      "atr_pct": 2.83625,
+      "hist_hi": 5.008625,
+      "hist_lo": 2.83625,
+      "hist_pct": 0.0
+    },
+    "score": 100,
+    "verdict": "Low vol (1yr low)  ATR%=2.8%  (0th pctile of 1yr range 2.8%\u21925.0%)"
+  },
+  "AnnVol(20)@last": {
+    "color_blanked": true,
+    "result": {
+      "hist_hi": 82.5007,
+      "hist_lo": 13.136761,
+      "hist_pct": 21.231157,
+      "volatility": 27.863528
+    },
+    "score": 79,
+    "verdict": "Low vol regime  27.9%  (21th pctile of 1yr range 13.1%->82.5%)"
+  },
+  "AnnVol(20)@mid": {
+    "color_blanked": true,
+    "result": {
+      "hist_hi": 82.660834,
+      "hist_lo": 21.294612,
+      "hist_pct": 17.605851,
+      "volatility": 32.098657
+    },
+    "score": 82,
+    "verdict": "Low vol regime  32.1%  (18th pctile of 1yr range 21.3%->82.7%)"
+  },
+  "BB(20,2.0)@last": {
+    "color_blanked": true,
+    "result": {
+      "lower": 361.004959,
+      "middle": 382.5825,
+      "position_pct": 45.406103,
+      "upper": 404.160041
+    },
+    "score": 63,
+    "verdict": "inside bands (45%B)"
+  },
+  "BB(20,2.0)@mid": {
+    "color_blanked": true,
+    "result": {
+      "lower": 374.557923,
+      "middle": 400.3675,
+      "position_pct": 70.501111,
+      "upper": 426.177077
+    },
+    "score": 46,
+    "verdict": "inside bands (71%B)"
+  },
+  "CandleScore@last": {
+    "color_blanked": true,
+    "result": {
+      "candle_score": -3.0,
+      "hist_hi": 5.0,
+      "hist_lo": -3.0,
+      "hist_pct": 0.0
+    },
+    "score": 0,
+    "verdict": "Bearish candle score=-3.0  (0th pctile of 1yr range -3.0->+5.0)"
+  },
+  "CandleScore@mid": {
+    "color_blanked": true,
+    "result": {
+      "candle_score": 0
+    },
+    "score": 50,
+    "verdict": "No pattern"
+  },
+  "EMA(20)@last": {
+    "color_blanked": true,
+    "result": {
+      "pct": -0.112931
+    },
+    "score": 59,
+    "verdict": "\u25bc -0.1% below"
+  },
+  "EMA(20)@mid": {
+    "color_blanked": true,
+    "result": {
+      "pct": 0.255002
+    },
+    "score": 60,
+    "verdict": "\u25b2 +0.3% above"
+  },
+  "FibLevels(126)@last": {
+    "color_blanked": true,
+    "result": {
+      "hi": 444.45,
+      "lo": 318.95,
+      "retrace_pct": 50.876494
+    },
+    "score": 89,
+    "verdict": "50-61.8% - valid retracement (50.9%)"
+  },
+  "FibLevels(126)@mid": {
+    "color_blanked": true,
+    "result": {
+      "hi": 564.05,
+      "lo": 376.5,
+      "retrace_pct": 81.631565
+    },
+    "score": 51,
+    "verdict": "78.6-100% - near lows (81.6%)"
+  },
+  "Ichimoku@last": {
+    "color_blanked": true,
+    "result": {
+      "cloud_pos": "Inside (Neutral)",
+      "kijun": 381.65,
+      "tenkan": 388.65
+    },
+    "score": 56,
+    "verdict": "Inside cloud - neutral (79% through)"
+  },
+  "Ichimoku@mid": {
+    "color_blanked": true,
+    "result": {
+      "cloud_pos": "Inside (Neutral)",
+      "kijun": 409.9,
+      "tenkan": 403.4
+    },
+    "score": 42,
+    "verdict": "Inside cloud - neutral (9% through)"
+  },
+  "KC(20,14,1.5)@last": {
+    "color_blanked": true,
+    "result": {
+      "lower": 361.557571,
+      "middle": 381.030303,
+      "upper": 400.503035
+    },
+    "score": 50,
+    "verdict": "inside channel (49%)"
+  },
+  "KC(20,14,1.5)@mid": {
+    "color_blanked": true,
+    "result": {
+      "lower": 392.421377,
+      "middle": 409.904733,
+      "upper": 427.388089
+    },
+    "score": 51,
+    "verdict": "inside channel (53%)"
+  },
+  "MACD@last": {
+    "color_blanked": true,
+    "result": {
+      "hist_hi": 6.232789,
+      "hist_lo": -7.455853,
+      "hist_pct": 50.270945,
+      "histogram": -0.574443,
+      "macd": 3.954759,
+      "signal": 4.529202
+    },
+    "score": 50,
+    "verdict": "bearish hist=-0.5744  (50th pctile of 1yr range -7.4559\u21926.2328)"
+  },
+  "MACD@mid": {
+    "color_blanked": true,
+    "result": {
+      "hist_hi": 10.70807,
+      "hist_lo": -7.455853,
+      "hist_pct": 68.807068,
+      "histogram": 5.04221,
+      "macd": -5.373066,
+      "signal": -10.415276
+    },
+    "score": 69,
+    "verdict": "bullish hist=5.0422  (69th pctile of 1yr range -7.4559\u219210.7081)"
+  },
+  "MFI(14)@last": {
+    "color_blanked": true,
+    "result": {
+      "mfi": 64.367206
+    },
+    "score": 8,
+    "verdict": "neutral (64)"
+  },
+  "MFI(14)@mid": {
+    "color_blanked": true,
+    "result": {
+      "mfi": 68.502361
+    },
+    "score": 0,
+    "verdict": "elevated (69)"
+  },
+  "MonthlyPivot@last": {
+    "color_blanked": true,
+    "result": {
+      "month": "2026-05",
+      "pp": 381.233333,
+      "r1": 400.753533,
+      "r2": 412.813133,
+      "r3": 432.333333,
+      "s1": 361.713133,
+      "s2": 349.653533,
+      "s3": 330.133333
+    },
+    "score": 60,
+    "verdict": "S1-PP - pullback to support"
+  },
+  "MonthlyPivot@mid": {
+    "color_blanked": true,
+    "result": {
+      "month": "2026-05",
+      "pp": 381.233333,
+      "r1": 400.753533,
+      "r2": 412.813133,
+      "r3": 432.333333,
+      "s1": 361.713133,
+      "s2": 349.653533,
+      "s3": 330.133333
+    },
+    "score": 23,
+    "verdict": "R1-R2 - above first resistance"
+  },
+  "Patterns@last": {
+    "color_blanked": true,
+    "result": {
+      "patterns": []
+    },
+    "score": 50,
+    "verdict": "-"
+  },
+  "Patterns@mid": {
+    "color_blanked": true,
+    "result": {
+      "patterns": []
+    },
+    "score": 50,
+    "verdict": "-"
+  },
+  "RSI(14)@last": {
+    "color_blanked": true,
+    "result": {
+      "rsi": 51.134546
+    },
+    "score": 47,
+    "verdict": "sweet-spot (51)"
+  },
+  "RSI(14)@mid": {
+    "color_blanked": true,
+    "result": {
+      "rsi": 47.781661
+    },
+    "score": 57,
+    "verdict": "sweet-spot (48)"
+  },
+  "Ret(5)@last": {
+    "color_blanked": true,
+    "result": {
+      "hist_hi": 13.374935,
+      "hist_lo": -11.085495,
+      "hist_pct": 30.965427,
+      "return": -3.511218
+    },
+    "score": 31,
+    "verdict": "-3.5%  below avg return  (31th pctile of 1yr range -11.1%->+13.4%)"
+  },
+  "Ret(5)@mid": {
+    "color_blanked": true,
+    "result": {
+      "hist_hi": 13.374935,
+      "hist_lo": -11.085495,
+      "hist_pct": 39.099099,
+      "return": -1.521687
+    },
+    "score": 39,
+    "verdict": "-1.5%  below avg return  (39th pctile of 1yr range -11.1%->+13.4%)"
+  },
+  "SMA(20)@last": {
+    "color_blanked": true,
+    "result": {
+      "pct": -0.518189
+    },
+    "score": 45,
+    "verdict": "\u25bc -0.5% below"
+  },
+  "SMA(20)@mid": {
+    "color_blanked": true,
+    "result": {
+      "pct": 2.643197
+    },
+    "score": 75,
+    "verdict": "\u25b2 +2.6% above"
+  },
+  "TTM_Squeeze@last": {
+    "color_blanked": true,
+    "result": {
+      "squeeze": false
+    },
+    "score": 50,
+    "verdict": "No squeeze"
+  },
+  "TTM_Squeeze@mid": {
+    "color_blanked": true,
+    "result": {
+      "squeeze": false
+    },
+    "score": 50,
+    "verdict": "No squeeze"
+  }
+}

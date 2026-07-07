@@ -1,0 +1,356 @@
+{
+  "ADX(14)@last": {
+    "color_blanked": true,
+    "result": {
+      "+di": 13.385676,
+      "-di": 23.050361,
+      "adx": 19.717946,
+      "hist_hi": 51.771186,
+      "hist_lo": 4.489093,
+      "hist_pct": 32.208502
+    },
+    "score": 68,
+    "verdict": "moderate trend / BEARISH  ADX=19.7  (32th pctile of 1yr range 4.5\u219251.8)"
+  },
+  "ADX(14)@mid": {
+    "color_blanked": true,
+    "result": {
+      "+di": 13.385676,
+      "-di": 23.050361,
+      "adx": 31.289406,
+      "hist_hi": 51.771186,
+      "hist_lo": 4.489093,
+      "hist_pct": 56.68174
+    },
+    "score": 43,
+    "verdict": "strong trend / BEARISH  ADX=31.3  (57th pctile of 1yr range 4.5\u219251.8)"
+  },
+  "ATR(14)@last": {
+    "color_blanked": true,
+    "result": {
+      "atr": 7.302718,
+      "atr_pct": 3.68452,
+      "hist_hi": 6.715593,
+      "hist_lo": 2.756068,
+      "hist_pct": 23.448565
+    },
+    "score": 77,
+    "verdict": "Low vol (1yr low)  ATR%=3.7%  (23th pctile of 1yr range 2.8%\u21926.7%)"
+  },
+  "ATR(14)@mid": {
+    "color_blanked": true,
+    "result": {
+      "atr": 8.102601,
+      "atr_pct": 3.37904,
+      "hist_hi": 5.894562,
+      "hist_lo": 2.756068,
+      "hist_pct": 19.849408
+    },
+    "score": 80,
+    "verdict": "Low vol (1yr low)  ATR%=3.4%  (20th pctile of 1yr range 2.8%\u21925.9%)"
+  },
+  "AnnVol(20)@last": {
+    "color_blanked": true,
+    "result": {
+      "hist_hi": 74.084529,
+      "hist_lo": 20.110333,
+      "hist_pct": 18.064863,
+      "volatility": 29.860698
+    },
+    "score": 82,
+    "verdict": "Low vol regime  29.9%  (18th pctile of 1yr range 20.1%->74.1%)"
+  },
+  "AnnVol(20)@mid": {
+    "color_blanked": true,
+    "result": {
+      "hist_hi": 49.58574,
+      "hist_lo": 20.110333,
+      "hist_pct": 43.440449,
+      "volatility": 32.914582
+    },
+    "score": 57,
+    "verdict": "Below avg vol  32.9%  (43th pctile of 1yr range 20.1%->49.6%)"
+  },
+  "BB(20,2.0)@last": {
+    "color_blanked": true,
+    "result": {
+      "lower": 188.835183,
+      "middle": 205.9095,
+      "position_pct": 27.423694,
+      "upper": 222.983817
+    },
+    "score": 75,
+    "verdict": "inside bands (27%B)"
+  },
+  "BB(20,2.0)@mid": {
+    "color_blanked": true,
+    "result": {
+      "lower": 231.057095,
+      "middle": 239.4165,
+      "position_pct": 52.234011,
+      "upper": 247.775905
+    },
+    "score": 59,
+    "verdict": "inside bands (52%B)"
+  },
+  "CandleScore@last": {
+    "color_blanked": true,
+    "result": {
+      "candle_score": 5.0,
+      "hist_hi": 5.0,
+      "hist_lo": -3.0,
+      "hist_pct": 100.0
+    },
+    "score": 100,
+    "verdict": "Bullish candle score=+5.0  (100th pctile of 1yr range -3.0->+5.0)"
+  },
+  "CandleScore@mid": {
+    "color_blanked": true,
+    "result": {
+      "candle_score": 5.0,
+      "hist_hi": 5.0,
+      "hist_lo": -3.0,
+      "hist_pct": 100.0
+    },
+    "score": 100,
+    "verdict": "Bullish candle score=+5.0  (100th pctile of 1yr range -3.0->+5.0)"
+  },
+  "EMA(20)@last": {
+    "color_blanked": true,
+    "result": {
+      "pct": -2.904799
+    },
+    "score": 54,
+    "verdict": "\u25bc -2.9% below"
+  },
+  "EMA(20)@mid": {
+    "color_blanked": true,
+    "result": {
+      "pct": -2.243676
+    },
+    "score": 55,
+    "verdict": "\u25bc -2.2% below"
+  },
+  "FibLevels(126)@last": {
+    "color_blanked": true,
+    "result": {
+      "hi": 279.4,
+      "lo": 162.1,
+      "retrace_pct": 69.224211
+    },
+    "score": 69,
+    "verdict": "61.8-78.6% - deep pullback (69.2%)"
+  },
+  "FibLevels(126)@mid": {
+    "color_blanked": true,
+    "result": {
+      "hi": 407.95,
+      "lo": 228.1,
+      "retrace_pct": 93.500139
+    },
+    "score": 34,
+    "verdict": "78.6-100% - near lows (93.5%)"
+  },
+  "Ichimoku@last": {
+    "color_blanked": true,
+    "result": {
+      "cloud_pos": "Below (Bearish)",
+      "kijun": 212.015,
+      "tenkan": 199.79
+    },
+    "score": 19,
+    "verdict": "Below cloud - bearish (+3.1%)"
+  },
+  "Ichimoku@mid": {
+    "color_blanked": true,
+    "result": {
+      "cloud_pos": "Below (Bearish)",
+      "kijun": 251.15,
+      "tenkan": 244.575
+    },
+    "score": 19,
+    "verdict": "Below cloud - bearish (+3.3%)"
+  },
+  "KC(20,14,1.5)@last": {
+    "color_blanked": true,
+    "result": {
+      "lower": 193.175475,
+      "middle": 204.129553,
+      "upper": 215.08363
+    },
+    "score": 39,
+    "verdict": "inside channel (23%)"
+  },
+  "KC(20,14,1.5)@mid": {
+    "color_blanked": true,
+    "result": {
+      "lower": 233.139691,
+      "middle": 245.293593,
+      "upper": 257.447495
+    },
+    "score": 41,
+    "verdict": "inside channel (27%)"
+  },
+  "MACD@last": {
+    "color_blanked": true,
+    "result": {
+      "hist_hi": 5.226779,
+      "hist_lo": -7.205551,
+      "hist_pct": 49.567897,
+      "histogram": -1.043106,
+      "macd": -3.662891,
+      "signal": -2.619784
+    },
+    "score": 50,
+    "verdict": "bearish hist=-1.0431  (50th pctile of 1yr range -7.2056\u21925.2268)"
+  },
+  "MACD@mid": {
+    "color_blanked": true,
+    "result": {
+      "hist_hi": 3.440672,
+      "hist_lo": -7.205551,
+      "hist_pct": 93.123254,
+      "histogram": 2.708559,
+      "macd": -9.621545,
+      "signal": -12.330104
+    },
+    "score": 93,
+    "verdict": "bullish hist=2.7086  (93th pctile of 1yr range -7.2056\u21923.4407)"
+  },
+  "MFI(14)@last": {
+    "color_blanked": true,
+    "result": {
+      "mfi": 38.379078
+    },
+    "score": 72,
+    "verdict": "recovering value zone (38)"
+  },
+  "MFI(14)@mid": {
+    "color_blanked": true,
+    "result": {
+      "mfi": 62.170437
+    },
+    "score": 14,
+    "verdict": "neutral (62)"
+  },
+  "MonthlyPivot@last": {
+    "color_blanked": true,
+    "result": {
+      "month": "2026-05",
+      "pp": 209.096667,
+      "r1": 222.237467,
+      "r2": 230.355867,
+      "r3": 243.496667,
+      "s1": 195.955867,
+      "s2": 187.837467,
+      "s3": 174.696667
+    },
+    "score": 72,
+    "verdict": "S1-PP - pullback to support"
+  },
+  "MonthlyPivot@mid": {
+    "color_blanked": true,
+    "result": {
+      "month": "2026-05",
+      "pp": 209.096667,
+      "r1": 222.237467,
+      "r2": 230.355867,
+      "r3": 243.496667,
+      "s1": 195.955867,
+      "s2": 187.837467,
+      "s3": 174.696667
+    },
+    "score": 13,
+    "verdict": "R2-R3 - strong resistance"
+  },
+  "Patterns@last": {
+    "color_blanked": true,
+    "result": {
+      "bearish": 0,
+      "bullish": 1,
+      "patterns": [
+        "Bullish Harami"
+      ]
+    },
+    "score": 60,
+    "verdict": "Bullish Harami"
+  },
+  "Patterns@mid": {
+    "color_blanked": true,
+    "result": {
+      "patterns": []
+    },
+    "score": 50,
+    "verdict": "-"
+  },
+  "RSI(14)@last": {
+    "color_blanked": true,
+    "result": {
+      "rsi": 39.776916
+    },
+    "score": 77,
+    "verdict": "value zone (40)"
+  },
+  "RSI(14)@mid": {
+    "color_blanked": true,
+    "result": {
+      "rsi": 37.753612
+    },
+    "score": 81,
+    "verdict": "value zone (38)"
+  },
+  "Ret(5)@last": {
+    "color_blanked": true,
+    "result": {
+      "hist_hi": 19.602991,
+      "hist_lo": -23.215196,
+      "hist_pct": 51.389404,
+      "return": -1.211185
+    },
+    "score": 51,
+    "verdict": "-1.2%  above avg return  (51th pctile of 1yr range -23.2%->+19.6%)"
+  },
+  "Ret(5)@mid": {
+    "color_blanked": true,
+    "result": {
+      "hist_hi": 19.602991,
+      "hist_lo": -23.215196,
+      "hist_pct": 48.045186,
+      "return": -2.643118
+    },
+    "score": 48,
+    "verdict": "-2.6%  below avg return  (48th pctile of 1yr range -23.2%->+19.6%)"
+  },
+  "SMA(20)@last": {
+    "color_blanked": true,
+    "result": {
+      "pct": -3.744121
+    },
+    "score": 22,
+    "verdict": "\u25bc -3.7% below"
+  },
+  "SMA(20)@mid": {
+    "color_blanked": true,
+    "result": {
+      "pct": 0.156004
+    },
+    "score": 51,
+    "verdict": "\u25b2 +0.2% above"
+  },
+  "TTM_Squeeze@last": {
+    "color_blanked": true,
+    "result": {
+      "squeeze": false
+    },
+    "score": 50,
+    "verdict": "No squeeze"
+  },
+  "TTM_Squeeze@mid": {
+    "color_blanked": true,
+    "result": {
+      "squeeze": false
+    },
+    "score": 50,
+    "verdict": "No squeeze"
+  }
+}
