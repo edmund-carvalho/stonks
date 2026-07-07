@@ -2099,6 +2099,234 @@ class TTMSqueeze(BaseTechnicalIndicator):
                     "color": CLR.DM, "result": {"squeeze": False}}
 
 
+class Stochastic(BaseTechnicalIndicator):
+    """
+    Slow Stochastic Oscillator.
+
+    Formula:
+        Raw %K(t) = 100 * (close(t) - LLV(low, period)) / (HHV(high, period) - LLV(low, period))
+        %K (slow) = SMA(Raw %K, smooth_k)
+        %D        = SMA(%K, smooth_d)
+
+    LLV/HHV (lowest-low / highest-high over the trailing window) use the
+    shared rolling_min_max() helper (O(n) monotonic deque) rather than a
+    per-bar rescan. A flat range (HHV == LLV) leaves Raw %K undefined
+    (None) for that bar rather than dividing by zero or fabricating a
+    value.
+
+    Classification mirrors BollingerBands' %B: continuous, inverted
+    (low %K = oversold = high score), with a %K/%D crossover bonus/
+    penalty of +/-10 mirroring MACD's signal-line-cross treatment.
+
+    Reference: George Lane, developed in the late 1950s.
+    """
+    def __init__(self, period: int = 14, smooth_k: int = 3, smooth_d: int = 3):
+        self.period = period
+        self.smooth_k = smooth_k
+        self.smooth_d = smooth_d
+
+    @property
+    def name(self):
+        return f"Stoch({self.period},{self.smooth_k},{self.smooth_d})"
+
+    @staticmethod
+    def _sma_skip_none(values: List[Optional[float]], period: int) -> List[Optional[float]]:
+        """SMA requiring `period` consecutive non-None trailing values;
+        None otherwise (no partial-window averaging, no look-ahead)."""
+        n = len(values)
+        out = [None] * n
+        for i in range(n):
+            if i < period - 1:
+                continue
+            window = values[i - period + 1: i + 1]
+            if any(v is None for v in window):
+                continue
+            out[i] = sum(window) / period
+        return out
+
+    def compute(self, stock: Stock):
+        highs, lows, closes = stock.highs, stock.lows, stock.closes
+        n = len(closes)
+        raw_k: List[Optional[float]] = [None] * n
+
+        llv, _ = rolling_min_max(lows, self.period, min_valid=self.period)
+        _, hhv = rolling_min_max(highs, self.period, min_valid=self.period)
+
+        for i in range(n):
+            if llv[i] is None or hhv[i] is None:
+                continue
+            rng = hhv[i] - llv[i]
+            if rng > 1e-9:
+                raw_k[i] = (closes[i] - llv[i]) / rng * 100.0
+            # else: flat range - Raw %K stays undefined (None)
+
+        k = self._sma_skip_none(raw_k, self.smooth_k)
+        d = self._sma_skip_none(k, self.smooth_d)
+        return {"k": k, "d": d}
+
+    def classify(self, stock: Stock, index: int = -1) -> Verdict:
+        data = stock.get_indicator(self.name)
+        k_series, d_series = data["k"], data["d"]
+        n = len(k_series)
+        idx = _norm_index(index, n)
+        if idx < 0 or idx >= n or k_series[idx] is None or d_series[idx] is None:
+            return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
+
+        k_val = k_series[idx]
+        d_val = d_series[idx]
+
+        # Continuous %K scoring, mirroring BollingerBands' %B: 0% = at the
+        # low of the range (oversold, best entry), 100% = at the high.
+        if k_val <= 0:
+            score = 90.0 + min(10, abs(k_val))
+            verdict = f"BELOW range - oversold ({k_val:.0f}%K)"
+            color = CLR.G
+        elif k_val <= 20:
+            score = 80.0 + ((20 - k_val) / 20) * 10
+            verdict = f"oversold ({k_val:.0f}%K)"
+            color = CLR.G
+        elif k_val <= 50:
+            score = 60.0 + ((50 - k_val) / 30) * 20
+            verdict = f"lower half ({k_val:.0f}%K)"
+            color = CLR.Y
+        elif k_val <= 80:
+            score = 40.0 + ((80 - k_val) / 30) * 20
+            verdict = f"upper half ({k_val:.0f}%K)"
+            color = CLR.Y
+        elif k_val <= 100:
+            score = 20.0 + ((100 - k_val) / 20) * 20
+            verdict = f"overbought ({k_val:.0f}%K)"
+            color = CLR.R
+        else:
+            score = max(0, 20.0 - (k_val - 100) * 2)
+            verdict = f"ABOVE range - overbought ({k_val:.0f}%K)"
+            color = CLR.R
+
+        # %K/%D crossover bonus/penalty, mirroring MACD's signal-line cross.
+        prev_k = k_series[idx - 1] if idx >= 1 else None
+        prev_d = d_series[idx - 1] if idx >= 1 else None
+        if prev_k is not None and prev_d is not None:
+            if prev_k <= prev_d and k_val > d_val:
+                score = min(100, score + 10)
+            elif prev_k >= prev_d and k_val < d_val:
+                score = max(0, score - 10)
+
+        return {"verdict": verdict, "score": int(round(score)), "color": color,
+                "result": {"k": k_val, "d": d_val}}
+
+
+class HeikinAshi(BaseTechnicalIndicator):
+    """
+    Heikin-Ashi smoothed candles, used to detect trend-reversal setups.
+
+    Formula:
+        HA_close(t) = (open(t) + high(t) + low(t) + close(t)) / 4
+        HA_open(t)  = (HA_open(t-1) + HA_close(t-1)) / 2   (bar 0 seeded
+                      from the real open/close average)
+        HA_high(t)  = max(high(t), HA_open(t), HA_close(t))
+        HA_low(t)   = min(low(t), HA_open(t), HA_close(t))
+
+    Recursive on the indicator's own prior output only (never on another
+    indicator's history), so it's inherently look-ahead-safe at any index.
+    `streak` (precomputed per-bar) is the signed consecutive-color run
+    length - positive for a green run, negative for a red run - so
+    classify() can detect reversal setups in O(1) per bar instead of
+    rescanning.
+
+    Classification looks for a color flip preceded either by a run of >=3
+    same-colored bars, or by a single "indecision" bar (small body, long
+    wick opposing the flip direction) - both are look-ahead-safe since
+    they only reference bars up to and including the current index.
+
+    Reference: Munehisa Homma's candlestick charting, Heikin-Ashi
+    smoothing popularized in the 2000s technical-analysis literature.
+    """
+    @property
+    def name(self):
+        return "HeikinAshi"
+
+    def compute(self, stock: Stock):
+        n = len(stock.candles)
+        opens, highs, lows, closes = stock.opens, stock.highs, stock.lows, stock.closes
+
+        ha_open:  List[float] = [0.0] * n
+        ha_high:  List[float] = [0.0] * n
+        ha_low:   List[float] = [0.0] * n
+        ha_close: List[float] = [0.0] * n
+        color:  List[str] = [""] * n
+        streak: List[int] = [0] * n
+
+        for i in range(n):
+            ha_close[i] = (opens[i] + highs[i] + lows[i] + closes[i]) / 4.0
+            ha_open[i] = ((opens[i] + closes[i]) / 2.0 if i == 0
+                          else (ha_open[i - 1] + ha_close[i - 1]) / 2.0)
+            ha_high[i] = max(highs[i], ha_open[i], ha_close[i])
+            ha_low[i] = min(lows[i], ha_open[i], ha_close[i])
+
+            color[i] = "green" if ha_close[i] >= ha_open[i] else "red"
+            step = 1 if color[i] == "green" else -1
+            streak[i] = step if (i == 0 or color[i] != color[i - 1]) else streak[i - 1] + step
+
+        return {"ha_open": ha_open, "ha_high": ha_high, "ha_low": ha_low,
+                "ha_close": ha_close, "color": color, "streak": streak}
+
+    @staticmethod
+    def _is_indecision(i: int, data: dict, wick_side: str) -> bool:
+        """Small body relative to range, with a long wick on `wick_side`
+        ("lower" for a bullish tell, "upper" for a bearish tell)."""
+        rng = data["ha_high"][i] - data["ha_low"][i]
+        if rng <= 1e-9:
+            return False
+        o, c = data["ha_open"][i], data["ha_close"][i]
+        body = abs(c - o)
+        if wick_side == "lower":
+            wick = min(o, c) - data["ha_low"][i]
+        else:
+            wick = data["ha_high"][i] - max(o, c)
+        return (body / rng) < 0.3 and (wick / rng) > 0.4
+
+    def classify(self, stock: Stock, index: int = -1) -> Verdict:
+        data = stock.get_indicator(self.name)
+        color = data["color"]
+        streak = data["streak"]
+        n = len(color)
+        idx = _norm_index(index, n)
+        if idx < 0 or idx >= n:
+            return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
+
+        cur_color = color[idx]
+        cur_streak = streak[idx]
+
+        bullish_setup = bearish_setup = False
+        prior_streak = 0
+        if idx >= 1:
+            prev_color, prev_streak_len = color[idx - 1], streak[idx - 1]
+            if cur_color == "green" and prev_color == "red":
+                prior_streak = abs(prev_streak_len)
+                bullish_setup = prior_streak >= 3 or self._is_indecision(idx - 1, data, "lower")
+            elif cur_color == "red" and prev_color == "green":
+                prior_streak = prev_streak_len
+                bearish_setup = prior_streak >= 3 or self._is_indecision(idx - 1, data, "upper")
+
+        if bullish_setup:
+            strength = min(1.0, prior_streak / 6.0) if prior_streak else 0.5
+            score = 60.0 + strength * 30.0  # 60-90
+            verdict = f"Bullish HA reversal (prior red streak={prior_streak})"
+            color_out = CLR.G
+        elif bearish_setup:
+            strength = min(1.0, prior_streak / 6.0) if prior_streak else 0.5
+            score = 40.0 - strength * 30.0  # 10-40
+            verdict = f"Bearish HA reversal (prior green streak={prior_streak})"
+            color_out = CLR.R
+        else:
+            score = 50.0
+            verdict = f"{cur_color} streak={cur_streak:+d}"
+            color_out = CLR.G if cur_color == "green" else CLR.R
+
+        return {"verdict": verdict, "score": int(round(score)), "color": color_out,
+                "result": {"color": cur_color, "streak": cur_streak}}
+
+
 # Shared, stateless instances - built once at import time and reused by
 # every Stock. Indicators carry no per-instance state beyond the
 # construction-time parameters set in __init__ (period, stddev, ...); they
@@ -3316,6 +3544,9 @@ class IndicatorTable:
         ("Ret(5)%",    "Ret(5)",     lambda stock: stock.get_indicator_value("Ret(5)", "vals")),
         ("Vol(20)%",   "AnnVol(20)", lambda stock: stock.get_indicator_value("AnnVol(20)", "vals")),
         ("Candle",     "CandleScore",lambda stock: stock.get_indicator_value("CandleScore", "vals")),
+        ("%K",         "Stoch(14,3,3)", lambda stock: stock.get_indicator_value("Stoch(14,3,3)", "k")),
+        ("%D",         "Stoch(14,3,3)", lambda stock: stock.get_indicator_value("Stoch(14,3,3)", "d")),
+        ("HA",         "HeikinAshi", lambda stock: stock.get_indicator_value("HeikinAshi", "streak")),
     ]
 
     @classmethod
@@ -3474,6 +3705,8 @@ FACTOR_WEIGHTS: Dict[str, float] = {
     "fib_retrace":     0.05,
     "bullish_setup":   0.10,
     "gate_strength":   0.05,
+    "stoch_entry":     0.0,   # NEW (Phase 7) - awaiting backtest A/B before earning weight
+    "ha_reversal":     0.0,   # NEW (Phase 7) - awaiting backtest A/B before earning weight
 }
 # Sum of active weights = 1.00
 
@@ -4320,6 +4553,60 @@ class BullishSetupFactor(BaseScoreFactor):
         # Combine (equal weight average)
         combined = (adx_score + candle_score + ret5_score) / 3.0
         return max(0.0, min(100.0, combined))
+
+
+class StochEntryFactor(BaseScoreFactor):
+    """
+    Stochastic entry-quality factor.
+
+    Registered at weight 0.0 in FACTOR_WEIGHTS (see PLAN.md Phase 7) -
+    added alongside the Stochastic/HeikinAshi indicators for a future
+    backtest A/B, not yet validated to add ranking signal on its own.
+    Continuous, inverted like the BB entry factor: oversold %K scores
+    high (entry-friendly).
+    """
+    @property
+    def name(self):
+        return "stoch_entry"
+
+    def score(self, stock: Stock, index: int = -1) -> Optional[float]:
+        try:
+            data = stock.get_indicator("Stoch(14,3,3)")
+            k_series = data["k"]
+            idx = _norm_index(index, len(k_series))
+            if idx < 0 or idx >= len(k_series) or k_series[idx] is None:
+                return None
+            return max(0.0, min(100.0, 100.0 - k_series[idx]))
+        except (KeyError, IndexError, TypeError):
+            return None
+
+
+class HAReversalFactor(BaseScoreFactor):
+    """
+    Heikin-Ashi reversal-setup factor.
+
+    Registered at weight 0.0, same status as StochEntryFactor above.
+    Deliberately simpler than HeikinAshi.classify()'s pattern-based
+    verdict (which also checks for "indecision" candle wicks) - a factor
+    just needs a robust continuous ranking signal, not a rich display
+    verdict, so this reads the streak directly through a sigmoid (same
+    shape as RSI's sweet-spot scoring): a long red streak scores high
+    (potential bullish reversal), a long green streak scores low.
+    """
+    @property
+    def name(self):
+        return "ha_reversal"
+
+    def score(self, stock: Stock, index: int = -1) -> Optional[float]:
+        try:
+            data = stock.get_indicator("HeikinAshi")
+            streak = data["streak"]
+            idx = _norm_index(index, len(streak))
+            if idx < 0 or idx >= len(streak):
+                return None
+            return 100.0 / (1.0 + math.exp(streak[idx] * 0.35))
+        except (KeyError, IndexError, TypeError):
+            return None
 
 
 # Shared, stateless instances - see TECHNICAL_INDICATORS (Stock class) for

@@ -5,12 +5,14 @@
   "crossover": 19.920869,
   "fib_retrace": 89.257208,
   "gate_strength": 35.387145,
+  "ha_reversal": 74.07749,
   "momentum_20": 11.583488,
   "overextension": 77.646963,
   "pivot_proximity": 60.811126,
   "pullback_entry": 18.963622,
   "rsi_quality": 46.60161,
   "sharpe_20": -13.826208,
+  "stoch_entry": 50.293542,
   "trend_ma": 33.333333,
   "volume_trend": 30.462278
 }

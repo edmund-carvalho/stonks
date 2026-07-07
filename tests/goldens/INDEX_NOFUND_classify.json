@@ -145,6 +145,24 @@
     "score": 56,
     "verdict": "23.6-38.2% - mild pullback (35.9%)"
   },
+  "HeikinAshi@last": {
+    "color_blanked": true,
+    "result": {
+      "color": "green",
+      "streak": 3
+    },
+    "score": 50,
+    "verdict": "green streak=+3"
+  },
+  "HeikinAshi@mid": {
+    "color_blanked": true,
+    "result": {
+      "color": "green",
+      "streak": 3
+    },
+    "score": 50,
+    "verdict": "green streak=+3"
+  },
   "Ichimoku@last": {
     "color_blanked": true,
     "result": {
@@ -326,6 +344,24 @@
     },
     "score": 66,
     "verdict": "\u25b2 +0.7% above"
+  },
+  "Stoch(14,3,3)@last": {
+    "color_blanked": true,
+    "result": {
+      "d": 83.776991,
+      "k": 88.953016
+    },
+    "score": 31,
+    "verdict": "overbought (89%K)"
+  },
+  "Stoch(14,3,3)@mid": {
+    "color_blanked": true,
+    "result": {
+      "d": 54.39045,
+      "k": 64.635904
+    },
+    "score": 50,
+    "verdict": "upper half (65%K)"
   },
   "TTM_Squeeze@last": {
     "color_blanked": true,

@@ -27,6 +27,8 @@ pivot_proximity = 0.05
 fib_retrace     = 0.05
 bullish_setup   = 0.10
 gate_strength   = 0.05
+stoch_entry     = 0.0   # NEW (Phase 7) - awaiting backtest A/B before earning weight
+ha_reversal     = 0.0   # NEW (Phase 7) - awaiting backtest A/B before earning weight
 
 [fundamental_sub_weights]
 f_valuation     = 0.25

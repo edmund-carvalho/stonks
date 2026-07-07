@@ -148,6 +148,24 @@
     "score": 51,
     "verdict": "78.6-100% - near lows (81.6%)"
   },
+  "HeikinAshi@last": {
+    "color_blanked": true,
+    "result": {
+      "color": "red",
+      "streak": -3
+    },
+    "score": 50,
+    "verdict": "red streak=-3"
+  },
+  "HeikinAshi@mid": {
+    "color_blanked": true,
+    "result": {
+      "color": "red",
+      "streak": -1
+    },
+    "score": 50,
+    "verdict": "red streak=-1"
+  },
   "Ichimoku@last": {
     "color_blanked": true,
     "result": {
@@ -329,6 +347,24 @@
     },
     "score": 75,
     "verdict": "\u25b2 +2.6% above"
+  },
+  "Stoch(14,3,3)@last": {
+    "color_blanked": true,
+    "result": {
+      "d": 56.555773,
+      "k": 49.706458
+    },
+    "score": 60,
+    "verdict": "lower half (50%K)"
+  },
+  "Stoch(14,3,3)@mid": {
+    "color_blanked": true,
+    "result": {
+      "d": 73.724954,
+      "k": 74.965847
+    },
+    "score": 53,
+    "verdict": "upper half (75%K)"
   },
   "TTM_Squeeze@last": {
     "color_blanked": true,
