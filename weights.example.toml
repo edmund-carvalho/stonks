@@ -1,0 +1,45 @@
+# Example weights override file for stonks.py.
+#
+# Usage: python stonks.py data/ -r --weights my_weights.toml
+#
+# Copy this file, edit the numbers, and pass it with --weights. Any section
+# or key you omit falls back to the built-in default (shown below). Unknown
+# keys are a hard error (protects against a silently-ignored typo). Each
+# section is renormalised to sum to 1.0 if your edits don't already add up,
+# so you don't need to rebalance every other value by hand.
+#
+# This file mirrors the current in-code defaults (stonks.py FACTOR_WEIGHTS /
+# FUNDAMENTAL_SUB_WEIGHTS), including the "KILLED" factors and the reasoning
+# behind them, so that tuning history isn't lost if you start from a copy.
+
+[factor_weights]
+momentum_20     = 0.0   # KILLED - predicts reversal
+sharpe_20       = 0.0   # KILLED - high sharpe = recent strength = reversal
+breakout        = 0.0   # KILLED - breakout already happened
+trend_ma        = 0.10
+rsi_quality     = 0.10
+crossover       = 0.10
+volume_trend    = 0.05
+bb_entry        = 0.15
+pullback_entry  = 0.15
+overextension   = 0.10
+pivot_proximity = 0.05
+fib_retrace     = 0.05
+bullish_setup   = 0.10
+gate_strength   = 0.05
+
+[fundamental_sub_weights]
+f_valuation     = 0.25
+f_quality       = 0.25
+f_growth        = 0.20
+f_analyst       = 0.15
+f_eps_momentum  = 0.10
+f_earnings_risk = 0.03
+f_ownership     = 0.02
+
+# Overrides --tech-weight/--fund-weight. If present, fund_weight here is
+# authoritative (tech_weight is set to its exact complement, 1 - fund_weight).
+# Omit this whole section to keep whatever --tech-weight/--fund-weight (or
+# their CLI defaults, 0.85/0.15) were passed on the command line.
+[blend]
+fund_weight = 0.15

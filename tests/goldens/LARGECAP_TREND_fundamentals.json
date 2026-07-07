@@ -41,12 +41,12 @@
     "verdict": "832.000% high"
   },
   "EarningsDate": {
-    "raw": 9,
+    "raw": 8,
     "result": {
-      "days": 9
+      "days": 8
     },
-    "score": 13,
-    "verdict": "in 9d"
+    "score": 12,
+    "verdict": "in 8d"
   },
   "EarningsGrowth": {
     "raw": -0.016,

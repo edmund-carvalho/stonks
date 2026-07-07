@@ -51,6 +51,7 @@ import math
 import os
 import re
 import textwrap
+import tomllib
 from abc import ABC, abstractmethod
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -3500,6 +3501,62 @@ FUNDAMENTAL_GROUPS: Dict[str, List[Tuple[str, float]]] = {
 }
 
 
+def _renormalize_weights(weights: Dict[str, float], label: str, source: str) -> Dict[str, float]:
+    """Renormalize a weight dict to sum to 1.0, printing an info line if it
+    didn't already. Raises ValueError if the weights sum to <= 0."""
+    total = sum(weights.values())
+    if total <= 0:
+        raise ValueError(f"{label} in {source} sum to {total} (must be > 0)")
+    if abs(total - 1.0) > 1e-9:
+        print(f"  [weights] {label} in {source} sum to {total:.4f} - renormalising to 1.0")
+        return {k: v / total for k, v in weights.items()}
+    return weights
+
+
+def load_weights_file(path: str) -> Tuple[Dict[str, float], Dict[str, float], Optional[float]]:
+    """
+    Load factor_weights / fundamental_sub_weights / blend.fund_weight
+    overrides from a TOML file (see weights.example.toml). Returns the
+    FULL weight dicts (built-in defaults merged with the file's overrides)
+    plus fund_weight (None if the file has no [blend] section, in which
+    case the caller keeps whatever fund_weight it already has).
+
+    Any key under [factor_weights] or [fundamental_sub_weights] that isn't
+    one of the built-in FACTOR_WEIGHTS/FUNDAMENTAL_SUB_WEIGHTS names is a
+    hard error - a typo'd factor name should not be silently ignored (it
+    would otherwise just never contribute to the ranking, indistinguishable
+    from an intentional weight of 0). Each section is renormalised to sum
+    to 1.0 if the file's overrides don't already add up.
+    """
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
+
+    factor_weights = dict(FACTOR_WEIGHTS)
+    file_factor_weights = data.get("factor_weights", {})
+    unknown = sorted(set(file_factor_weights) - set(FACTOR_WEIGHTS))
+    if unknown:
+        raise ValueError(
+            f"Unknown factor_weights key(s) in {path}: {unknown}. "
+            f"Valid keys: {sorted(FACTOR_WEIGHTS)}"
+        )
+    factor_weights.update(file_factor_weights)
+    factor_weights = _renormalize_weights(factor_weights, "factor_weights", path)
+
+    fundamental_sub_weights = dict(FUNDAMENTAL_SUB_WEIGHTS)
+    file_sub_weights = data.get("fundamental_sub_weights", {})
+    unknown_sub = sorted(set(file_sub_weights) - set(FUNDAMENTAL_SUB_WEIGHTS))
+    if unknown_sub:
+        raise ValueError(
+            f"Unknown fundamental_sub_weights key(s) in {path}: {unknown_sub}. "
+            f"Valid keys: {sorted(FUNDAMENTAL_SUB_WEIGHTS)}"
+        )
+    fundamental_sub_weights.update(file_sub_weights)
+    fundamental_sub_weights = _renormalize_weights(fundamental_sub_weights, "fundamental_sub_weights", path)
+
+    fund_weight = data.get("blend", {}).get("fund_weight")
+    return factor_weights, fundamental_sub_weights, fund_weight
+
+
 # ---------------------------------------------------------------------------
 # Cross-section normalisation
 # ---------------------------------------------------------------------------
@@ -4745,6 +4802,7 @@ def parse_args():
     parser.add_argument("--to-date",       dest="to_date",     type=str,   default=None, help="End date (YYYY-MM-DD) for analysis window")
     parser.add_argument("--no-color",      dest="no_color",    action="store_true",      help="Disable ANSI color output")
     parser.add_argument("--debug",         dest="debug",       action="store_true",      help="Log swallowed exceptions (typos, indicator bugs) to stderr")
+    parser.add_argument("--weights",       dest="weights",     type=str,   default=None, help="TOML file overriding factor/fundamental weights and blend (see weights.example.toml)")
 
     return parser.parse_args()
 
@@ -4758,6 +4816,21 @@ def main():
         logger.addHandler(logging.StreamHandler())
 
     print(_STONKS_BANNER)
+
+    factor_weights = None
+    fundamental_sub_weights = None
+    if args.weights:
+        try:
+            factor_weights, fundamental_sub_weights, file_fund_weight = load_weights_file(args.weights)
+        except (ValueError, OSError, tomllib.TOMLDecodeError) as e:
+            print(f"ERROR: failed to load weights file '{args.weights}': {e}")
+            return
+        if file_fund_weight is not None:
+            # The file's fund_weight is authoritative - set tech_weight to
+            # its exact complement so rank_stocks_xnorm's normalisation is
+            # a no-op instead of re-diluting it against the CLI default.
+            args.fund_weight = file_fund_weight
+            args.tech_weight = 1.0 - file_fund_weight
 
     # Parse dates with IST timezone (matching the candle data)
     ist = timezone(timedelta(hours=5, minutes=30))
@@ -4781,7 +4854,7 @@ def main():
         # Single file → full report
         app.reporter.print_full_report(app.stocks[0])
     elif args.ranking:
-        app.ranking(args.tech_weight, args.fund_weight)
+        app.ranking(args.tech_weight, args.fund_weight, factor_weights, fundamental_sub_weights)
     else:
         # Directory → both summary tables
         app.technical_summary()

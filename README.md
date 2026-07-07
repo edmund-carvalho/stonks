@@ -25,6 +25,7 @@ A complete pipeline to fetch NSE stock data, enrich with fundamentals, compute t
     - [1. NSE constituent CSV files](#1-nse-constituent-csv-files)
     - [2. Trading holidays](#2-trading-holidays)
     - [3. Market hours](#3-market-hours)
+    - [4. Weights configuration](#4-weights-configuration)
   - [Scoring System](#scoring-system)
   - [Technical Indicators \& Fundamentals](#technical-indicators--fundamentals)
   - [Command Line Reference](#command-line-reference)
@@ -319,6 +320,31 @@ Hardcoded in `kite.py`:
 
 Modify `MARKET_OPEN` and `MARKET_CLOSE` if needed.
 
+### 4. Weights configuration
+
+The ranking factor weights, fundamental sub-category weights, and technical/fundamental blend can be overridden without editing `stonks.py`, via a TOML file:
+
+```bash
+python stonks.py data/ -r --weights my_weights.toml
+```
+
+Copy `weights.example.toml` (which mirrors the current in-code defaults, including the "KILLED" factors and why) as a starting point:
+
+```toml
+[factor_weights]
+bb_entry = 0.30   # only the keys you want to change
+
+[fundamental_sub_weights]
+f_quality = 0.35
+
+[blend]
+fund_weight = 0.25   # overrides --tech-weight/--fund-weight; tech_weight is set to 1 - fund_weight
+```
+
+- Any section or key you omit keeps its built-in default.
+- Unknown keys (e.g. a typo'd factor name) are a **hard error** - they don't silently get ignored.
+- Each section is renormalised to sum to 1.0 if your edits don't already add up (a message is printed when this happens).
+
 ---
 
 ## Scoring System
@@ -326,13 +352,15 @@ Modify `MARKET_OPEN` and `MARKET_CLOSE` if needed.
 The ranking engine uses a **two-pass cross-sectional normalisation**:
 
 1. **Raw factor scores** are calculated for each stock (momentum, trend, RSI quality, Sharpe, etc.).
-2. **Min-max normalisation** across the universe turns each factor into a 0-100 score.
-3. **Weighted composite** (technical) = sum of factor weights × normalised scores.
+2. **Percentile-rank normalisation** across the universe turns each factor into a 0-100 score (ties share the average rank; a single extreme outlier can only claim the top/bottom slot, unlike min-max scaling).
+3. **Weighted composite** (technical) = sum of factor weights × normalised scores, renormalised per stock over whichever factors actually have data (a stock missing some factors isn't diluted by a neutral filler score for them).
 4. **Bonus computer** adds candlestick, Ichimoku, peak-proximity, and TTM squeeze adjustments.
-5. **Fundamental composite** is built from sub-categories (valuation, quality, growth, analyst, etc.).
-6. **Final overall score** = `(1 - fund_weight) * ta_composite + fund_weight * fa_composite`.
+5. **Fundamental composite** is built from sub-categories (valuation, quality, growth, analyst, etc.), with the same per-stock renormalisation.
+6. **Final overall score** = `(1 - fund_weight) * ta_composite + fund_weight * fa_composite`, where `tech_weight`/`fund_weight` are normalised to sum to 1 internally.
 
-The default factor weights and fundamental sub-weights are documented inside `stonks.py`. You can override them via the API or by editing the script.
+Stocks where less than 60% of the total factor weight is backed by real data are flagged with a `*` in the ranking table rather than silently ranked on mostly-neutral filler.
+
+The default factor weights and fundamental sub-weights are defined in `stonks.py` (`FACTOR_WEIGHTS` / `FUNDAMENTAL_SUB_WEIGHTS`). Override them without editing the script via `--weights <file.toml>` - see `weights.example.toml` and the [Weights configuration](#4-weights-configuration) section below.
 
 For a detailed explanation of each factor, see the **Scoring System** section in the source code comments.
 
@@ -379,15 +407,20 @@ usage: python kite.py --job JOB_FILE [--output-dir DIR] [--days N] [--update] [-
 ### `stonks.py`
 
 ```
-usage: python stonks.py [-h] [-r] [--tech-weight TECH_WEIGHT] [--fund-weight FUND_WEIGHT] [--from-date FROM_DATE] [--to-date TO_DATE] [path]
+usage: python stonks.py [-h] [-r] [--tech-weight TECH_WEIGHT] [--fund-weight FUND_WEIGHT]
+                         [--from-date FROM_DATE] [--to-date TO_DATE] [--no-color] [--debug]
+                         [--weights WEIGHTS] [path]
 ```
 
 - `PATH` : directory of candle JSONs or a single JSON file.
 - `-r` : show cross-sectional ranking.
 - `--tech-weight` : weight for technical composite (default 0.85).
-- `--fund-weight` : weight for fundamental composite (default 0.15).
+- `--fund-weight` : weight for fundamental composite (default 0.15). `--tech-weight`/`--fund-weight` are normalised to sum to 1 internally, so e.g. `--tech-weight 3 --fund-weight 1` is equivalent to `0.75`/`0.25`.
 - `--from-date` : Start date (YYYY-MM-DD) for analysis window.
 - `--to-date` : End date (YYYY-MM-DD) for analysis window.
+- `--no-color` : Disable ANSI color output (also respects the `NO_COLOR` environment variable).
+- `--debug` : Log swallowed exceptions (typos, indicator bugs) to stderr - silent by default.
+- `--weights` : TOML file overriding factor/fundamental weights and the tech/fund blend - see [Weights configuration](#4-weights-configuration).
 ---
 
 ## Example Walkthrough
