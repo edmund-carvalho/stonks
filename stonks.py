@@ -243,7 +243,7 @@ class SMA(BaseTechnicalIndicator):
             atr_data = stock.get_indicator("ATR(14)")
             atr_vals = atr_data["atr_vals"] if isinstance(atr_data, dict) else atr_data
             atr = atr_vals[index] if index < len(atr_vals) and atr_vals[index] else None
-        except:
+        except (KeyError, IndexError, TypeError):
             atr = None
         
         if atr and ma > 0:
@@ -457,9 +457,12 @@ class MACD(BaseTechnicalIndicator):
                 histogram[i] = macd_line[i] - signal[i]
         
         # Compute ROLLING hist stats for each bar (no look-ahead)
+        # NOTE: histogram is initialized to 0.0 (never None), so warmup bars
+        # before the signal EMA settles contribute fake zeros to "valid"
+        # below. This is a real characterization-worthy quirk, not dead code
+        # removed here - see PLAN.md Phase 2 (sentinel normalization) for the
+        # actual fix, applied consistently across MACD/ADX/BollingerBands.
         for i in range(n):
-            if histogram[i] is None:
-                continue
             start = max(0, i - HIST_WINDOW + 1)
             valid = [v for v in histogram[start:i+1] if v is not None]
             if len(valid) >= 5:
@@ -2074,9 +2077,9 @@ class BaseFundamentalIndicator(ABC):
         """Return only the ANSI colour code."""
         return self.classify(stock).get("color", CLR.DM)
 
-    def get_result(self, stock: Stock, index: int = -1) -> Dict[str, Any]:
+    def get_result(self, stock: Stock) -> Dict[str, Any]:
         """Return the extra result dict."""
-        return self.classify(stock, index).get("result", {})
+        return self.classify(stock).get("result", {})
 
 
 class TrailingPE(BaseFundamentalIndicator):
