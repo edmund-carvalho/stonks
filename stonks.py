@@ -141,6 +141,23 @@ class Candle:
                 f"C={self.close:.3f} V={self.volume:.0f}{oi})")
 
 
+def _norm_index(index: int, n: int) -> int:
+    """
+    Normalize a possibly-negative index against a sequence of length n.
+
+    Returns the equivalent non-negative index for valid inputs
+    (index in [-n, n-1]). For invalid inputs (out of that range in either
+    direction) the result is still out of [0, n) - callers must still
+    bounds-check the result (0 <= result < n) before indexing with it,
+    exactly as they already bounds-check plain positive indices. This
+    just centralizes the "n + index" arithmetic so every classify()
+    handles negative indices the same way instead of some relying on
+    Python's native negative-indexing (which silently mis-wraps once
+    |index| > n) and others reimplementing the same one-liner.
+    """
+    return index if index >= 0 else n + index
+
+
 # =============================================================================
 # 2.  INDICATOR BASE CLASS + AUTO-REGISTRATION
 # =============================================================================
@@ -232,17 +249,18 @@ class SMA(BaseTechnicalIndicator):
 
     def classify(self, stock: Stock, index: int = -1) -> Verdict:
         series = stock.get_indicator(self.name)
-        if index >= len(series) or series[index] is None:
+        idx = _norm_index(index, len(series))
+        if idx < 0 or idx >= len(series) or series[idx] is None:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
-        px = stock.closes[index]
-        ma = series[index]
+        px = stock.closes[idx]
+        ma = series[idx]
         pct = (px / ma - 1) * 100
-        
+
         # Get ATR for volatility scaling
         try:
             atr_data = stock.get_indicator("ATR(14)")
             atr_vals = atr_data["atr_vals"] if isinstance(atr_data, dict) else atr_data
-            atr = atr_vals[index] if index < len(atr_vals) and atr_vals[index] else None
+            atr = atr_vals[idx] if 0 <= idx < len(atr_vals) and atr_vals[idx] else None
         except (KeyError, IndexError, TypeError):
             atr = None
         
@@ -304,10 +322,11 @@ class EMA(BaseTechnicalIndicator):
 
     def classify(self, stock: Stock, index: int = -1) -> Verdict:
         series = stock.get_indicator(self.name)
-        if index >= len(series) or series[index] is None:
+        idx = _norm_index(index, len(series))
+        if idx < 0 or idx >= len(series) or series[idx] is None:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
-        px = stock.closes[index]
-        ma = series[index]
+        px = stock.closes[idx]
+        ma = series[idx]
         pct = (px / ma - 1) * 100
         if pct > 0:
             verdict = f"▲ {pct:+.1f}% above"
@@ -367,9 +386,10 @@ class RSI(BaseTechnicalIndicator):
     def classify(self, stock: Stock, index: int = -1) -> Verdict:
         """Continuous RSI classification with market-cap-adjusted thresholds."""
         series = stock.get_indicator(self.name)
-        if index >= len(series) or series[index] is None:
+        idx = _norm_index(index, len(series))
+        if idx < 0 or idx >= len(series) or series[idx] is None:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
-        rsi = series[index]
+        rsi = series[idx]
         
         # Market cap adjusted sweet spot
         cap = stock.metadata.get("capital", "").upper()
@@ -489,9 +509,9 @@ class MACD(BaseTechnicalIndicator):
         data = stock.get_indicator(self.name)
         hist_series = data["histogram"]
         n   = len(hist_series)
-        idx = index if index >= 0 else n + index
+        idx = _norm_index(index, n)
 
-        if idx >= n or hist_series[idx] is None:
+        if idx < 0 or idx >= n or hist_series[idx] is None:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
 
         hist     = hist_series[idx]
@@ -647,12 +667,13 @@ class BollingerBands(BaseTechnicalIndicator):
     def classify(self, stock: Stock, index: int = -1) -> Verdict:
         """Continuous %B classification: 0% = lower band (best entry), 100% = upper band."""
         bb = stock.get_indicator(self.name)
-        if index >= len(bb["upper"]) or bb["upper"][index] is None:
+        idx = _norm_index(index, len(bb["upper"]))
+        if idx < 0 or idx >= len(bb["upper"]) or bb["upper"][idx] is None:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
-        px = stock.closes[index]
-        up = bb["upper"][index]
-        lo = bb["lower"][index]
-        mid = bb["middle"][index]
+        px = stock.closes[idx]
+        up = bb["upper"][idx]
+        lo = bb["lower"][idx]
+        mid = bb["middle"][idx]
         
         # Continuous %B scoring: 0% = at lower band, 100% = at upper band
         if up != lo:
@@ -773,9 +794,9 @@ class ATR(BaseTechnicalIndicator):
         data    = stock.get_indicator(self.name)
         atr_raw = data["atr_vals"] if isinstance(data, dict) else data
         n   = len(atr_raw)
-        idx = index if index >= 0 else n + index
+        idx = _norm_index(index, n)
 
-        if idx >= n or atr_raw[idx] is None:
+        if idx < 0 or idx >= n or atr_raw[idx] is None:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
 
         # data is now a dict from the updated compute()
@@ -882,13 +903,14 @@ class MFI(BaseTechnicalIndicator):
 
     def classify(self, stock: "Stock", index: int = -1) -> Verdict:
         series = stock.get_indicator(self.name)
-        if index >= len(series) or series[index] is None:
+        idx = _norm_index(index, len(series))
+        if idx < 0 or idx >= len(series) or series[idx] is None:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
-        
-        mfi = series[index]
-        
+
+        mfi = series[idx]
+
         # MFI trend over 5 days
-        mfi_5d_ago = series[index - 5] if index >= 5 and series[index - 5] is not None else mfi
+        mfi_5d_ago = series[idx - 5] if idx >= 5 and series[idx - 5] is not None else mfi
         mfi_trend = mfi - mfi_5d_ago
         
         # Base score from MFI level
@@ -1051,9 +1073,9 @@ class ADX(BaseTechnicalIndicator):
         data = stock.get_indicator(self.name)
         adx_series = data["adx"]
         n   = len(adx_series)
-        idx = index if index >= 0 else n + index
+        idx = _norm_index(index, n)
 
-        if idx >= n or adx_series[idx] == 0.0:
+        if idx < 0 or idx >= n or adx_series[idx] == 0.0:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
 
         adx = adx_series[idx]
@@ -1173,16 +1195,17 @@ class Ichimoku(BaseTechnicalIndicator):
     def classify(self, stock: Stock, index: int = -1) -> Verdict:
         """Distance-based Ichimoku classification."""
         ichi = stock.get_indicator(self.name)
-        if index >= len(ichi["cloud_pos"]) or ichi["cloud_pos"][index] is None:
+        idx = _norm_index(index, len(ichi["cloud_pos"]))
+        if idx < 0 or idx >= len(ichi["cloud_pos"]) or ichi["cloud_pos"][idx] is None:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
-        pos = ichi["cloud_pos"][index]
-        tenkan = ichi["tenkan"][index]
-        kijun = ichi["kijun"][index]
-        px = stock.closes[index]
-        
+        pos = ichi["cloud_pos"][idx]
+        tenkan = ichi["tenkan"][idx]
+        kijun = ichi["kijun"][idx]
+        px = stock.closes[idx]
+
         # Distance above/below cloud as percentage
-        senk_a = ichi["senk_a"][index]
-        senk_b = ichi["senk_b"][index]
+        senk_a = ichi["senk_a"][idx]
+        senk_b = ichi["senk_b"][idx]
         
         if senk_a and senk_b:
             cloud_top = max(senk_a, senk_b)
@@ -1264,11 +1287,12 @@ class FibonacciLevels(BaseTechnicalIndicator):
     def classify(self, stock: Stock, index: int = -1) -> Verdict:
         """Continuous Fibonacci retracement scoring - optimal zone: 38.2%-61.8%."""
         levels = stock.get_indicator(self.name)
-        if index >= len(levels) or not levels[index]:
+        idx = _norm_index(index, len(levels))
+        if idx < 0 or idx >= len(levels) or not levels[idx]:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
-        px = stock.closes[index]
-        hi = levels[index]["hi"]
-        lo = levels[index]["lo"]
+        px = stock.closes[idx]
+        hi = levels[idx]["hi"]
+        lo = levels[idx]["lo"]
         diff = hi - lo if hi > lo else 1
         retrace_pct = (hi - px) / diff * 100
         
@@ -1357,9 +1381,10 @@ class MonthlyPivotPoints(BaseTechnicalIndicator):
     def classify(self, stock: Stock, index: int = -1) -> Verdict:
         """Continuous pivot zone scoring - optimal: PP to R1."""
         piv = stock.get_indicator(self.name)
-        if not piv:
+        idx = _norm_index(index, len(stock.closes))
+        if not piv or idx < 0 or idx >= len(stock.closes):
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
-        px = stock.closes[index]
+        px = stock.closes[idx]
         pp = piv["pp"]
         r1 = piv["r1"]
         r2 = piv["r2"]
@@ -1457,9 +1482,9 @@ class RollingReturn(BaseTechnicalIndicator):
         data   = stock.get_indicator(self.name)
         series = data.get("vals") if isinstance(data, dict) else data
         n   = len(series)
-        idx = index if index >= 0 else n + index
+        idx = _norm_index(index, n)
 
-        if idx >= n or series[idx] is None:
+        if idx < 0 or idx >= n or series[idx] is None:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
 
         ret = series[idx]
@@ -1569,9 +1594,9 @@ class AnnualizedVolatility(BaseTechnicalIndicator):
         data   = stock.get_indicator(self.name)
         series = data.get("vals") if isinstance(data, dict) else data
         n   = len(series)
-        idx = index if index >= 0 else n + index
+        idx = _norm_index(index, n)
 
-        if idx >= n or series[idx] is None:
+        if idx < 0 or idx >= n or series[idx] is None:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
 
         vol = series[idx]
@@ -1687,7 +1712,11 @@ class CandlePatterns(BaseTechnicalIndicator):
         return pats
 
     def classify(self, stock: Stock, index: int = -1) -> Verdict:
-        patterns = stock.get_indicator(self.name)[index]
+        series = stock.get_indicator(self.name)
+        idx = _norm_index(index, len(series))
+        if idx < 0 or idx >= len(series):
+            return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
+        patterns = series[idx]
         if not patterns:
             return {"verdict": "-", "score": 50, "color": CLR.DM, "result": {"patterns": []}}
         
@@ -1777,9 +1806,9 @@ class CandleScore(BaseTechnicalIndicator):
         data   = stock.get_indicator(self.name)
         series = data.get("vals") if isinstance(data, dict) else data
         n   = len(series)
-        idx = index if index >= 0 else n + index
+        idx = _norm_index(index, n)
 
-        if idx >= n or series[idx] is None:
+        if idx < 0 or idx >= n or series[idx] is None:
             return {"verdict": "N/A", "score": 50, "color": CLR.DM, "result": {}}
 
         cs_val = series[idx]
@@ -1907,9 +1936,9 @@ class KeltnerChannel(BaseTechnicalIndicator):
     def classify(self, stock: "Stock", index: int = -1) -> Verdict:
         kc = stock.get_indicator(self.name)
         n = len(kc["upper"])
-        idx = index if index >= 0 else n + index
-        
-        if idx >= n or kc["upper"][idx] is None:
+        idx = _norm_index(index, n)
+
+        if idx < 0 or idx >= n or kc["upper"][idx] is None:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
         
         px = stock.closes[idx]
@@ -2002,9 +2031,9 @@ class TTMSqueeze(BaseTechnicalIndicator):
     def classify(self, stock: "Stock", index: int = -1) -> Verdict:
         data = stock.get_indicator(self.name)
         n = len(data["squeeze"])
-        idx = index if index >= 0 else n + index
-        
-        if idx >= n:
+        idx = _norm_index(index, n)
+
+        if idx < 0 or idx >= n:
             return {"verdict": "N/A", "score": 0, "color": CLR.DM, "result": {}}
         
         is_squeeze = data["squeeze"][idx]
@@ -3028,7 +3057,10 @@ class Stock:
         """
         c   = self.closes
         n   = len(c)
-        idx = index if index >= 0 else n + index
+        idx = _norm_index(index, n)
+        if idx < 0 or idx >= n:
+            return {"gate_mom": False, "gate_trend": False, "gate_adx": False,
+                    "gate_mfi": False, "gate_ichi": False, "gate_bb_ttm": False}
 
         m20       = _rolling_ret(c, 20, idx)
         gate_mom  = m20 is not None and m20 > 0
@@ -3468,24 +3500,21 @@ def winsorize(values: List[Optional[float]], lower_pct: float = 2.5, upper_pct: 
 # ---------------------------------------------------------------------------
 def _sma_val(closes: list, period: int, index: int) -> Optional[float]:
     """Simple moving average at index (handles negative indices)."""
-    n   = len(closes)
-    idx = index if index >= 0 else n + index
+    idx = _norm_index(index, len(closes))
     if idx < period - 1:
         return None
     return sum(closes[idx - period + 1: idx + 1]) / period
 
 def _rolling_ret(closes: list, period: int, index: int) -> Optional[float]:
     """(closes[index] / closes[index-period] - 1) * 100, or None."""
-    n   = len(closes)
-    idx = index if index >= 0 else n + index
+    idx = _norm_index(index, len(closes))
     if idx < period or closes[idx - period] == 0:
         return None
     return (closes[idx] / closes[idx - period] - 1.0) * 100.0
 
 def _ann_vol(closes: list, period: int, index: int) -> Optional[float]:
     """Annualised daily-return volatility over period bars ending at index."""
-    n   = len(closes)
-    idx = index if index >= 0 else n + index
+    idx = _norm_index(index, len(closes))
     if idx < period:
         return None
     rets = [(closes[i] / closes[i - 1] - 1.0)
