@@ -984,6 +984,9 @@ class ADX(BaseTechnicalIndicator):
         atr_pdm = sum(pdm[:p]) / p
         atr_mdm = sum(mdm[:p]) / p
         dx_list = []
+        pdi_list = []   # per-bar +DI, parallel to dx_list (was previously
+        mdi_list = []   # discarded, leaving plus_di/minus_di backfilled
+                        # with only the final loop iteration's values)
         for j in range(p, len(tr)):
             atr     = (atr * (p - 1) + tr[j]) / p
             atr_pdm = (atr_pdm * (p - 1) + pdm[j]) / p
@@ -992,6 +995,8 @@ class ADX(BaseTechnicalIndicator):
             mdi = (atr_mdm / atr) * 100 if atr else 0
             di_sum = pdi + mdi
             dx_list.append(abs(pdi - mdi) / di_sum * 100 if di_sum else 0)
+            pdi_list.append(pdi)
+            mdi_list.append(mdi)
 
         if len(dx_list) < p:
             return {"adx": adx_vals, "+di": plus_di, "-di": minus_di,
@@ -1000,15 +1005,15 @@ class ADX(BaseTechnicalIndicator):
         adx_smooth = sum(dx_list[:p]) / p
         idx = p * 2
         adx_vals[idx] = adx_smooth
-        plus_di[idx] = pdi   # latest DI values
-        minus_di[idx] = mdi
+        plus_di[idx] = pdi_list[p - 1]   # DI for the same bar as dx_list[p-1]
+        minus_di[idx] = mdi_list[p - 1]
         for k in range(p, len(dx_list)):
             adx_smooth = (adx_smooth * (p - 1) + dx_list[k]) / p
             idx = p * 2 + 1 + (k - p)
             if idx < n:
                 adx_vals[idx] = adx_smooth
-                plus_di[idx] = pdi
-                minus_di[idx] = mdi
+                plus_di[idx] = pdi_list[k]
+                minus_di[idx] = mdi_list[k]
         
         # Pre-compute ADX hist stats so classify() is O(1)
         # Compute ROLLING hist stats for each bar

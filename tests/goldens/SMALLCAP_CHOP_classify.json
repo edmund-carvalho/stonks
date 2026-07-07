@@ -15,15 +15,15 @@
   "ADX(14)@mid": {
     "color_blanked": true,
     "result": {
-      "+di": 21.885479,
-      "-di": 17.577209,
+      "+di": 20.56829,
+      "-di": 21.582316,
       "adx": 25.511773,
       "hist_hi": 47.25442,
       "hist_lo": 11.942654,
       "hist_pct": 38.426622
     },
-    "score": 38,
-    "verdict": "moderate trend / BULLISH  ADX=25.5  (38th pctile of 1yr range 11.9\u219247.3)"
+    "score": 62,
+    "verdict": "moderate trend / BEARISH  ADX=25.5  (38th pctile of 1yr range 11.9\u219247.3)"
   },
   "ATR(14)@last": {
     "color_blanked": true,
