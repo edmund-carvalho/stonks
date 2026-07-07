@@ -26,7 +26,7 @@ Architecture:
 Key Design Decisions:
     - All indicators and fundamentals are auto-registered via __init_subclass__
     - Indicator results are lazily computed and cached per Stock instance
-    - Cross-sectional ranking uses min-max normalisation across the universe
+    - Cross-sectional ranking uses percentile-rank normalisation across the universe
     - Scoring is continuous (no quantized tiers) for better differentiation
     - Market cap adjustments are applied to volatility-sensitive indicators
 
@@ -46,6 +46,7 @@ Code Layout :
 from __future__ import annotations
 import argparse
 import json
+import logging
 import math
 import os
 import re
@@ -55,6 +56,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Type, TypedDict
+
+logger = logging.getLogger("stonks")
 
 _STONKS_BANNER = """
   /₹₹₹₹₹₹  /₹₹₹₹₹₹₹₹ /₹₹₹₹₹₹  /₹₹   /₹₹ /₹₹   /₹₹  /₹₹₹₹₹₹ 
@@ -113,6 +116,29 @@ class PreComputeMode(Enum):
 # CONSTANTS
 # =============================================================================
 HIST_WINDOW = 252  # trading days (~1 year) for history-normalised indicators
+
+
+# =============================================================================
+# DEBUG LOGGING FOR SWALLOWED EXCEPTIONS
+# =============================================================================
+# Several call sites (Stock.precompute, factor scoring in rank_stocks_xnorm,
+# _fund_sub_scores, table renderers) deliberately catch broad exceptions so
+# one bad indicator/symbol doesn't crash a whole run - but that also means a
+# typo'd indicator name or a genuine bug silently degrades to "N/A"/neutral
+# scores with no visible trace. --debug (see parse_args/main) raises this
+# logger to DEBUG and adds a stderr handler; without it, nothing is printed
+# (Python's logging module is silent below WARNING by default).
+_LOGGED_SWALLOWED: set = set()
+
+
+def _log_swallowed(site: str, symbol: str, exc: Exception) -> None:
+    """Log a caught-and-ignored exception once per (site, symbol) - the
+    same failure would otherwise repeat every time this site runs."""
+    key = (site, symbol)
+    if key in _LOGGED_SWALLOWED:
+        return
+    _LOGGED_SWALLOWED.add(key)
+    logger.debug("swallowed %s in %s for %s: %s", type(exc).__name__, site, symbol, exc)
 
 
 # =============================================================================
@@ -3121,15 +3147,15 @@ class Stock:
             for ind in self.indicators:
                 try:
                     self.get_indicator(ind.name)
-                except Exception:
-                    pass
-        
+                except Exception as e:
+                    _log_swallowed(f"precompute_indicator:{ind.name}", self.symbol, e)
+
         if mode in (PreComputeMode.PCM_ALL, PreComputeMode.PCM_FUNDAMENTAL):
             for f in self.fundamentals:
                 try:
                     self.get_fundamental_raw(f.name)
-                except Exception:
-                    pass
+                except Exception as e:
+                    _log_swallowed(f"precompute_fundamental:{f.name}", self.symbol, e)
 
     def __repr__(self):
         return f"Stock({self.symbol!r}, candles={len(self.candles)})"
@@ -3283,11 +3309,12 @@ class IndicatorTable:
 
         for stock in stocks:
             row = [stock.symbol]
-            for _, _, extractor in indicators:
+            for header_name, _, extractor in indicators:
                 try:
                     val = extractor(stock)
-                except (IndexError, TypeError, KeyError):
+                except (IndexError, TypeError, KeyError) as e:
                     val = None
+                    _log_swallowed(f"indicator_table:{header_name}", stock.symbol, e)
                 if val is None:
                     cell = " N/A "
                 elif isinstance(val, float):
@@ -3334,8 +3361,9 @@ class FundamentalTable:
             for _, name, fmt in fundamentals:
                 try:
                     cell = fmt(stock, name)
-                except Exception:
+                except Exception as e:
                     cell = "N/A"
+                    _log_swallowed(f"fundamental_table:{name}", stock.symbol, e)
                 row.append(str(cell))
             rows.append(row)
         _print_table(headers, rows)
@@ -3379,8 +3407,9 @@ class ScoreTable:
                         cell = f"{val:.1f}"  # Scores are 0-100, not percentages
                     else:
                         cell = str(val)
-                except Exception:
+                except Exception as e:
                     cell = "N/A"
+                    _log_swallowed(f"score_table:{name}", stock.symbol, e)
                 row.append(cell)
             rows.append(row)
         _print_table(headers, rows)
@@ -3457,43 +3486,73 @@ FUNDAMENTAL_GROUPS: Dict[str, List[Tuple[str, float]]] = {
 # Cross-section normalisation
 # ---------------------------------------------------------------------------
 def xnorm(vals: Dict[str, Optional[float]]) -> Dict[str, float]:
-    """Min-max scale {symbol: raw_value} to [0, 100].  None maps to 50."""
+    """
+    Percentile-rank scale {symbol: raw_value} to [0, 100] across the
+    universe. None maps to 50 (neutral) - callers that need to distinguish
+    "genuinely average" from "no data" must check the raw value before
+    calling xnorm(), not rely on its output alone (see rank_stocks_xnorm's
+    per-stock weight renormalization for missing factors).
+
+    Uses fractional (average) ranking: tied values share the average rank
+    of their group, so a cluster of identical values doesn't arbitrarily
+    favor one member by insertion order. Unlike min-max scaling, a single
+    extreme outlier can only ever claim the top (or bottom) rank slot - it
+    cannot compress the spacing between every other value the way min-max
+    does, which is what previously required a separate winsorize() step
+    for fundamentals; that step is now redundant and has been removed.
+    """
     valid = {k: v for k, v in vals.items() if v is not None}
-    if not valid:
+    n = len(valid)
+    if n <= 1:
         return {k: 50.0 for k in vals}
-    lo, hi = min(valid.values()), max(valid.values())
-    rng = hi - lo
+
+    sorted_syms = sorted(valid, key=lambda k: valid[k])
+    ranks: Dict[str, float] = {}
+    i = 0
+    while i < n:
+        j = i
+        while j + 1 < n and valid[sorted_syms[j + 1]] == valid[sorted_syms[i]]:
+            j += 1
+        avg_rank = (i + j) / 2.0  # 0-based average rank for the tied group
+        for k in range(i, j + 1):
+            ranks[sorted_syms[k]] = avg_rank
+        i = j + 1
+
     return {
-        k: (50.0 if v is None else
-            50.0 if rng < 1e-9 else
-            (v - lo) / rng * 100.0)
+        k: (50.0 if v is None else ranks[k] / (n - 1) * 100.0)
         for k, v in vals.items()
     }
 
-def winsorize(values: List[Optional[float]], lower_pct: float = 2.5, upper_pct: float = 97.5) -> List[Optional[float]]:
+
+def _weighted_composite(sym: str, weights: Dict[str, float],
+                         raw: Dict[str, Dict[str, Optional[float]]],
+                         normed: Dict[str, Dict[str, float]],
+                         use_raw: bool) -> Tuple[float, float]:
     """
-    Clip extreme outliers to prevent one stock from compressing the entire distribution.
-    Values below the lower percentile are raised; values above the upper percentile are reduced.
-    
-    Example: A stock with P/E 2,500 in a universe where most P/Es are 10-50 would
-    be clipped to the 97.5th percentile (~50), preventing it from flattening the
-    normalized distribution for all other stocks.
+    Weighted average of per-factor (or per-fundamental-sub-category) scores
+    for one stock, counting only members that have real (non-None) raw
+    data for this stock. Missing members are excluded rather than defaulted
+    to a neutral 50, and the remaining weights are renormalized so they
+    still sum to 1 - the same pattern _fund_sub_scores already uses one
+    level down, applied here across the top-level composite.
+
+    Returns (composite, coverage), where coverage is the fraction of this
+    stock's total possible weight that was backed by real data (1.0 =
+    everything present, 0.0 = nothing) - used by rank_stocks_xnorm to flag
+    thin-coverage stocks in the ranking table instead of silently ranking
+    them on mostly-neutral filler.
     """
-    valid = [v for v in values if v is not None]
-    n = len(valid)
-    if n < 10:
-        return values  # Not enough data to safely winsorize
-    
-    sorted_vals = sorted(valid)
-    
-    # Safe array bounds with max/min guards
-    lo_idx = max(0, min(n - 1, int(n * lower_pct / 100)))
-    hi_idx = max(0, min(n - 1, int(n * upper_pct / 100)))
-    
-    lo = sorted_vals[lo_idx]
-    hi = sorted_vals[hi_idx]
-    
-    return [lo if v is not None and v < lo else (hi if v is not None and v > hi else v) for v in values]
+    total_weight = sum(weights.values()) or 1.0
+    available = {fname: w for fname, w in weights.items() if raw[fname].get(sym) is not None}
+    available_weight = sum(available.values())
+    if available_weight <= 0:
+        return 50.0, 0.0
+    composite = sum(
+        (w / available_weight) * (raw[fname][sym] if use_raw else normed[fname].get(sym, 50.0))
+        for fname, w in available.items()
+    )
+    return composite, available_weight / total_weight
+
 
 # ---------------------------------------------------------------------------
 # Shared helpers used by factor implementations
@@ -4204,7 +4263,16 @@ def _fund_sub_scores(stock: Stock) -> Dict[str, Optional[float]]:
     """
     Compute the fundamental sub-category scores for one stock.
     Each is a weighted average of member fundamental Verdict scores (0-100).
-    Returns None for a sub-category if no members have data.
+    Returns None for a sub-category if no members have real data.
+
+    A member "has data" iff its verdict isn't "N/A" - every fundamental's
+    classify() returns a numeric score even in its no-data case (0 for
+    most, 50 for MarketCap's display-only case), so checking `score is not
+    None` never actually excludes anything: it would silently treat a
+    stock with zero real fundamentals (e.g. an index) as if it had
+    genuinely scored the worst possible value in every category, rather
+    than as missing data. Checking the verdict is the stable "no data"
+    signal (see tests/test_fundamentals_goldens.py).
     """
     subs: Dict[str, Optional[float]] = {}
     for sub_name, members in FUNDAMENTAL_GROUPS.items():
@@ -4213,12 +4281,11 @@ def _fund_sub_scores(stock: Stock) -> Dict[str, Optional[float]]:
         for fname, w in members:
             try:
                 _, v = stock.get_fundamental(fname)
-                s = v.get("score")
-                if s is not None:
-                    w_sum += s * w
+                if v.get("verdict") != "N/A":
+                    w_sum += v.get("score", 0) * w
                     w_tot += w
-            except Exception:
-                pass
+            except Exception as e:
+                _log_swallowed(f"fund_sub_score:{fname}", stock.symbol, e)
         subs[sub_name] = (w_sum / w_tot) if w_tot > 0 else None
     return subs
 
@@ -4322,7 +4389,9 @@ class RankingTable:
             print(f"  {CLR.G}I{CLR.E} = Ichimoku (price above cloud)")
             print(f"  {CLR.G}B{CLR.E} = BB/TTM Squeeze (volatility compression)")
             print(f"  {CLR.DM}✓ = passed  ✗ = failed{CLR.E}")
-            
+            if any(r.get("low_coverage") for r in results):
+                print(f"  {CLR.Y}*{CLR.E} = low data coverage (score blended over mostly-missing factors - treat with caution)")
+
             show_fa = any(r.get("fundamental_avg", 0) > 0 for r in results)
             headers = ["#", "Symbol", "Score", "TA"] + (["FA"] if show_fa else []) + \
                       ["M", "T", "A", "F", "I", "B"]  # Added "B" for BB/TTM Squeeze
@@ -4330,9 +4399,10 @@ class RankingTable:
             for rank, r in enumerate(results, 1):
                 def gf(k):
                     return f"{CLR.G}✓{CLR.E}" if r.get(k, False) else f"{CLR.R}✗{CLR.E}"
+                symbol = r["symbol"] + (f"{CLR.Y}*{CLR.E}" if r.get("low_coverage") else "")
                 row = [
                     str(rank),
-                    r["symbol"],
+                    symbol,
                     f"{r['overall']:.1f}",
                     f"{r['ta_composite']:.1f}",
                 ]
@@ -4522,8 +4592,14 @@ class Stonks:
             for factor in factors:
                 try:
                     raw_scores[factor.name][stock.symbol] = factor.score(stock)
-                except Exception:
+                except KeyError:
+                    # An unknown indicator name is a programmer error (typo
+                    # in a factor's get_indicator() call), not a legitimate
+                    # per-stock data gap - don't let it masquerade as one.
+                    raise
+                except Exception as e:
                     raw_scores[factor.name][stock.symbol] = None
+                    _log_swallowed(f"factor_score:{factor.name}", stock.symbol, e)
 
         # -- Normalise each factor column -----------------------------
         normed: Dict[str, Dict[str, float]] = {
@@ -4540,59 +4616,36 @@ class Stonks:
                 for sub, val in sub_scores.items():
                     if sub in fund_raw:
                         fund_raw[sub][stock.symbol] = val
-            
-            # Winsorize before normalization to prevent outlier compression
-            for sub in fund_raw:
-                symbols = list(fund_raw[sub].keys())
-                values = [fund_raw[sub][s] for s in symbols]
-                winsorized = winsorize(values)
-                for s, v in zip(symbols, winsorized):
-                    fund_raw[sub][s] = v
-            
+
             fund_normed = {sub: xnorm(col) for sub, col in fund_raw.items()}
 
-        # -- Normalise sub-weights so they sum to 1 --------------------
-        fw_total   = sum(fweights.values()) or 1.0
-        sfw_total  = sum(sfw.values()) or 1.0
-
-        # -- Pass 2: Compute TA composite (weighted sum of normalised scores) -----
+        # -- Pass 2: Compute composites (weighted sum of normalised scores) -----
+        # Single-stock: xnorm collapses every factor to 50 (lo==hi), so use
+        # raw factor/sub-scores directly instead - see _weighted_composite.
+        MIN_COVERAGE = 0.6   # below this fraction of weight backed by real
+                             # data, a stock is flagged rather than ranked
+                             # on mostly-neutral filler (see ranking table's
+                             # "*" suffix)
         results = []
         _single = len(self.stocks) == 1
         for stock in self.stocks:
             sym = stock.symbol
 
-            # TA composite
-            # Single-stock: xnorm collapses every factor to 50 (lo==hi).
-            # Use raw factor scores directly so the result is meaningful.
-            ta_comp = sum(
-                (fweights[fname] / fw_total) * (
-                    raw_scores[fname].get(sym, 50.0)
-                    if _single else
-                    normed[fname].get(sym, 50.0)
-                )
-                for fname in fweights
-            )
+            ta_comp, ta_coverage = _weighted_composite(sym, fweights, raw_scores, normed, use_raw=_single)
             ta_comp += BonusComputer.compute(stock)
             ta_comp = max(0.0, min(100.0, ta_comp))
 
-            # FA composite
-            fa_comp = 0.0
+            fa_comp, fa_coverage = 0.0, 0.0
             if fund_weight > 0 and fund_normed:
-                # Single-stock: bypass xnorm, use raw sub-scores directly.
-                fa_comp = sum(
-                    (sfw[sub] / sfw_total) * (
-                        fund_raw[sub].get(sym, 50.0)
-                        if _single else
-                        fund_normed[sub].get(sym, 50.0)
-                    )
-                    for sub in sfw
-                )
+                fa_comp, fa_coverage = _weighted_composite(sym, sfw, fund_raw, fund_normed, use_raw=_single)
 
             # Blend
             if fund_weight > 0:
-                overall = (((1.0 - fund_weight) * ta_comp) + (fund_weight * fa_comp))
+                overall  = ((1.0 - fund_weight) * ta_comp) + (fund_weight * fa_comp)
+                coverage = ((1.0 - fund_weight) * ta_coverage) + (fund_weight * fa_coverage)
             else:
-                overall = ta_comp
+                overall  = ta_comp
+                coverage = ta_coverage
             overall = max(0.0, min(100.0, overall))
 
             # Gate flags
@@ -4602,6 +4655,7 @@ class Stonks:
                 "overall":         round(overall, 1),
                 "ta_composite":    round(ta_comp,  1),
                 "fa_composite":    round(fa_comp,  1),
+                "low_coverage":    coverage < MIN_COVERAGE,
                 "factor_detail":   {  # Optional: useful for backtest analysis
                     fname: {
                         "raw":    raw_scores[fname].get(sym),
@@ -4637,6 +4691,7 @@ class Stonks:
                 "overall":           score["overall"],
                 "ta_composite":      score["ta_composite"],
                 "fundamental_avg":   score["fa_composite"],
+                "low_coverage":      score.get("low_coverage", False),
                 "technical_count":   len(factor_weights or FACTOR_WEIGHTS),
                 "fundamental_count": len(fundamental_sub_weights or FUNDAMENTAL_SUB_WEIGHTS) if fund_weight > 0 else 0,
                 # Gate flags for display
@@ -4661,6 +4716,7 @@ def parse_args():
     parser.add_argument("--from-date",     dest="from_date",   type=str,   default=None, help="Start date (YYYY-MM-DD) for analysis window")
     parser.add_argument("--to-date",       dest="to_date",     type=str,   default=None, help="End date (YYYY-MM-DD) for analysis window")
     parser.add_argument("--no-color",      dest="no_color",    action="store_true",      help="Disable ANSI color output")
+    parser.add_argument("--debug",         dest="debug",       action="store_true",      help="Log swallowed exceptions (typos, indicator bugs) to stderr")
 
     return parser.parse_args()
 
@@ -4669,6 +4725,9 @@ def main():
     args = parse_args()
     if args.no_color or os.environ.get("NO_COLOR"):
         CLR.disable()
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(logging.StreamHandler())
 
     print(_STONKS_BANNER)
 

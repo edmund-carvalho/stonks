@@ -1,50 +1,54 @@
 [
   {
-    "fa_composite": 88.9,
+    "fa_composite": 100.0,
     "gate_adx": false,
     "gate_bb_ttm": false,
     "gate_ichi": false,
     "gate_mfi": true,
     "gate_mom": false,
     "gate_trend": false,
-    "overall": 61.5,
+    "low_coverage": false,
+    "overall": 64.9,
     "symbol": "SHORTHIST",
-    "ta_composite": 56.7
+    "ta_composite": 58.7
   },
   {
-    "fa_composite": 78.3,
-    "gate_adx": true,
-    "gate_bb_ttm": false,
-    "gate_ichi": true,
-    "gate_mfi": true,
-    "gate_mom": true,
-    "gate_trend": true,
-    "overall": 55.1,
-    "symbol": "LARGECAP_TREND",
-    "ta_composite": 51.0
-  },
-  {
-    "fa_composite": 79.9,
-    "gate_adx": false,
-    "gate_bb_ttm": false,
-    "gate_ichi": false,
-    "gate_mfi": true,
-    "gate_mom": false,
-    "gate_trend": true,
-    "overall": 49.9,
-    "symbol": "SMALLCAP_CHOP",
-    "ta_composite": 44.6
-  },
-  {
-    "fa_composite": 0.0,
+    "fa_composite": 50.0,
     "gate_adx": false,
     "gate_bb_ttm": false,
     "gate_ichi": true,
     "gate_mfi": false,
     "gate_mom": true,
     "gate_trend": true,
-    "overall": 46.4,
+    "low_coverage": false,
+    "overall": 54.7,
     "symbol": "INDEX_NOFUND",
-    "ta_composite": 54.6
+    "ta_composite": 55.5
+  },
+  {
+    "fa_composite": 38.5,
+    "gate_adx": true,
+    "gate_bb_ttm": false,
+    "gate_ichi": true,
+    "gate_mfi": true,
+    "gate_mom": true,
+    "gate_trend": true,
+    "low_coverage": false,
+    "overall": 46.4,
+    "symbol": "LARGECAP_TREND",
+    "ta_composite": 47.8
+  },
+  {
+    "fa_composite": 14.0,
+    "gate_adx": false,
+    "gate_bb_ttm": false,
+    "gate_ichi": false,
+    "gate_mfi": true,
+    "gate_mom": false,
+    "gate_trend": true,
+    "low_coverage": false,
+    "overall": 37.8,
+    "symbol": "SMALLCAP_CHOP",
+    "ta_composite": 42.0
   }
 ]

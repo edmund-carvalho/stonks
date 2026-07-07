@@ -1,6 +1,6 @@
 [
   {
-    "fa_composite": 0.0,
+    "fa_composite": 100.0,
     "gate_adx": false,
     "gate_bb_ttm": false,
     "gate_ichi": false,
@@ -8,25 +8,25 @@
     "gate_mom": false,
     "gate_trend": false,
     "low_coverage": false,
-    "overall": 58.7,
+    "overall": 87.6,
     "symbol": "SHORTHIST",
     "ta_composite": 58.7
   },
   {
-    "fa_composite": 0.0,
+    "fa_composite": 50.0,
     "gate_adx": false,
     "gate_bb_ttm": false,
     "gate_ichi": true,
     "gate_mfi": false,
     "gate_mom": true,
     "gate_trend": true,
-    "low_coverage": false,
-    "overall": 55.5,
+    "low_coverage": true,
+    "overall": 51.7,
     "symbol": "INDEX_NOFUND",
     "ta_composite": 55.5
   },
   {
-    "fa_composite": 0.0,
+    "fa_composite": 38.5,
     "gate_adx": true,
     "gate_bb_ttm": false,
     "gate_ichi": true,
@@ -34,12 +34,12 @@
     "gate_mom": true,
     "gate_trend": true,
     "low_coverage": false,
-    "overall": 47.8,
+    "overall": 41.3,
     "symbol": "LARGECAP_TREND",
     "ta_composite": 47.8
   },
   {
-    "fa_composite": 0.0,
+    "fa_composite": 14.0,
     "gate_adx": false,
     "gate_bb_ttm": false,
     "gate_ichi": false,
@@ -47,7 +47,7 @@
     "gate_mom": false,
     "gate_trend": true,
     "low_coverage": false,
-    "overall": 42.0,
+    "overall": 22.4,
     "symbol": "SMALLCAP_CHOP",
     "ta_composite": 42.0
   }

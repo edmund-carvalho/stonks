@@ -1,17 +1,17 @@
 """
 True unit tests (independent expected values, not golden files) for the
-small pure-function helpers used by the scoring engine: xnorm, winsorize,
-_sma_val, _rolling_ret, _ann_vol.
+small pure-function helpers used by the scoring engine: xnorm,
+_weighted_composite, _sma_val, _rolling_ret, _ann_vol.
 """
 import math
 
 import pytest
 
-from stonks import xnorm, winsorize, _sma_val, _rolling_ret, _ann_vol
+from stonks import xnorm, _weighted_composite, _sma_val, _rolling_ret, _ann_vol
 
 
 # ---------------------------------------------------------------------------
-# xnorm
+# xnorm (percentile-rank normalization - see Phase 3, PLAN.md)
 # ---------------------------------------------------------------------------
 
 def test_xnorm_empty():
@@ -40,30 +40,68 @@ def test_xnorm_none_maps_to_50_alongside_real_spread():
     assert result == {"a": 50.0, "b": 0.0, "c": 100.0}
 
 
+def test_xnorm_three_way_tie_gets_average_rank():
+    # a=1 (lowest), b/c/d tied in the middle, e=10 (highest). The tied trio
+    # shares the average of ranks 1-3 (0-based: 1,2,3 -> avg 2), which maps
+    # to the same percentile a single untied middle value would get.
+    result = xnorm({"a": 1.0, "b": 5.0, "c": 5.0, "d": 5.0, "e": 10.0})
+    assert result == {"a": 0.0, "b": 50.0, "c": 50.0, "d": 50.0, "e": 100.0}
+
+
+def test_xnorm_outlier_does_not_compress_the_rest_of_the_distribution():
+    # This is the whole point of switching from min-max to percentile-rank:
+    # under min-max, the extreme "d" value would compress a/b/c to ~0-0.2,
+    # making them look nearly identical despite being evenly spaced.
+    result = xnorm({"a": 1.0, "b": 2.0, "c": 3.0, "d": 1000.0})
+    assert result == pytest.approx({"a": 0.0, "b": 100.0 / 3, "c": 200.0 / 3, "d": 100.0})
+    # Evenly spaced non-outlier values remain evenly spaced in the output.
+    assert result["b"] - result["a"] == pytest.approx(result["c"] - result["b"])
+
+
 # ---------------------------------------------------------------------------
-# winsorize
+# _weighted_composite (per-stock weight renormalization over available data)
 # ---------------------------------------------------------------------------
 
-def test_winsorize_fewer_than_10_valid_returns_unchanged():
-    values = [1.0, 2.0, None, 4.0, 1000.0]
-    assert winsorize(values) == values
+def test_weighted_composite_full_coverage_uses_normed_values():
+    weights = {"f1": 0.5, "f2": 0.5}
+    raw     = {"f1": {"x": 10.0}, "f2": {"x": 20.0}}
+    normed  = {"f1": {"x": 100.0}, "f2": {"x": 0.0}}
+    composite, coverage = _weighted_composite("x", weights, raw, normed, use_raw=False)
+    assert composite == pytest.approx(50.0)
+    assert coverage == pytest.approx(1.0)
 
 
-def test_winsorize_clips_a_single_extreme_outlier():
-    # 99 normal values + 1 extreme outlier -> at n=100 the default 2.5/97.5
-    # percentile indices (2 and 97) both land inside the "normal" block, so
-    # lo == hi == 10.0 and the outlier gets clipped down to 10.0 while every
-    # normal value passes through unchanged.
-    values = [10.0] * 99 + [1000.0]
-    result = winsorize(values)
-    assert result[:99] == [10.0] * 99
-    assert result[99] == 10.0
+def test_weighted_composite_renormalizes_over_available_factors():
+    # f1 is missing (raw None) for this stock - it must be excluded rather
+    # than defaulted to a neutral 50, and f2's weight must absorb all of
+    # f1's share (0.7/0.7 = full weight) instead of only counting for 70%.
+    weights = {"f1": 0.3, "f2": 0.7}
+    raw     = {"f1": {"x": None}, "f2": {"x": 20.0}}
+    normed  = {"f1": {"x": 50.0}, "f2": {"x": 80.0}}
+    composite, coverage = _weighted_composite("x", weights, raw, normed, use_raw=False)
+    assert composite == pytest.approx(80.0)
+    assert coverage == pytest.approx(0.7)
 
 
-def test_winsorize_preserves_none_positions():
-    values = [10.0] * 50 + [None] * 5 + [10.0] * 50
-    result = winsorize(values)
-    assert result[50:55] == [None] * 5
+def test_weighted_composite_zero_coverage_returns_neutral():
+    weights = {"f1": 1.0}
+    raw     = {"f1": {"x": None}}
+    normed  = {"f1": {"x": 50.0}}
+    composite, coverage = _weighted_composite("x", weights, raw, normed, use_raw=False)
+    assert composite == 50.0
+    assert coverage == 0.0
+
+
+def test_weighted_composite_use_raw_bypasses_normed():
+    # This is the single-stock ranking bypass: normed values are meaningless
+    # (xnorm collapses everything to 50 with only one stock in the universe),
+    # so use_raw=True must read straight from `raw`, ignoring `normed`.
+    weights = {"f1": 1.0}
+    raw     = {"f1": {"x": 42.0}}
+    normed  = {"f1": {"x": 999.0}}
+    composite, coverage = _weighted_composite("x", weights, raw, normed, use_raw=True)
+    assert composite == pytest.approx(42.0)
+    assert coverage == pytest.approx(1.0)
 
 
 # ---------------------------------------------------------------------------

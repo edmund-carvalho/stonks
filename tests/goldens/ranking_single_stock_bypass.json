@@ -1,13 +1,14 @@
 [
   {
-    "fa_composite": 50.1,
+    "fa_composite": 51.7,
     "gate_adx": true,
     "gate_bb_ttm": false,
     "gate_ichi": true,
     "gate_mfi": true,
     "gate_mom": true,
     "gate_trend": true,
-    "overall": 45.0,
+    "low_coverage": false,
+    "overall": 45.2,
     "symbol": "LARGECAP_TREND",
     "ta_composite": 44.1
   }
