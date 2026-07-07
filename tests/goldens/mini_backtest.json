@@ -19,7 +19,7 @@
         },
         {
           "entry_price": 24712.05,
-          "entry_score": 48.0,
+          "entry_score": 47.0,
           "fwd_return": 1.056367,
           "symbol": "INDEX_NOFUND"
         }
@@ -53,7 +53,7 @@
       "picks": [
         {
           "entry_price": 25936.2,
-          "entry_score": 55.7,
+          "entry_score": 60.7,
           "fwd_return": -0.232879,
           "symbol": "INDEX_NOFUND"
         },
@@ -78,13 +78,13 @@
           "symbol": "LARGECAP_TREND"
         },
         {
-          "entry_price": 265.8,
-          "entry_score": 48.9,
-          "fwd_return": -10.233258,
-          "symbol": "SHORTHIST"
+          "entry_price": 26215.55,
+          "entry_score": 52.9,
+          "fwd_return": -1.209206,
+          "symbol": "INDEX_NOFUND"
         }
       ],
-      "portfolio_return": -3.174582,
+      "portfolio_return": 1.337444,
       "universe_avg_return": -3.875982
     },
     {
@@ -99,7 +99,7 @@
         },
         {
           "entry_price": 25942.1,
-          "entry_score": 51.0,
+          "entry_score": 53.0,
           "fwd_return": -0.585342,
           "symbol": "INDEX_NOFUND"
         }
@@ -113,7 +113,7 @@
       "picks": [
         {
           "entry_price": 25418.9,
-          "entry_score": 64.1,
+          "entry_score": 63.1,
           "fwd_return": 2.104536,
           "symbol": "INDEX_NOFUND"
         },
@@ -133,7 +133,7 @@
       "picks": [
         {
           "entry_price": 25496.55,
-          "entry_score": 52.9,
+          "entry_score": 51.9,
           "fwd_return": -9.199088,
           "symbol": "INDEX_NOFUND"
         },
@@ -189,12 +189,12 @@
     }
   ],
   "summary": {
-    "mean_return": 0.671458,
+    "mean_return": 1.172794,
     "median_return": -0.076434,
     "nifty_avg_return": null,
     "nifty_cagr": null,
     "pick_count": 18,
-    "portfolio_cagr": 6.427357,
+    "portfolio_cagr": 13.090823,
     "rebalance_count": 9,
     "universe_avg_return": 0.860359,
     "universe_cagr": 9.345619,

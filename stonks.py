@@ -3719,6 +3719,8 @@ FACTOR_WEIGHTS: Dict[str, float] = {
     "momentum_20":     0.0,   # KILLED - predicts reversal
     "sharpe_20":       0.0,   # KILLED - high sharpe = recent strength = reversal
     "breakout":        0.0,   # KILLED - breakout already happened
+    "mom_12_1":        0.0,   # NEW (2026-07-07 review) - awaiting backtest A/B before earning weight
+    "dist_52wk_high":  0.0,   # NEW (2026-07-07 review) - awaiting backtest A/B before earning weight
     "trend_ma":        0.11111111111111112,
     "rsi_quality":     0.11111111111111112,
     "crossover":       0.11111111111111112,
@@ -3996,6 +3998,71 @@ class Momentum20Factor(BaseScoreFactor):
         if r_recent is None or r_prior is None:
             return None
         return r_recent - r_prior
+
+
+class Momentum12_1Factor(BaseScoreFactor):
+    """
+    Classic "12-1 month" momentum: ~120-trading-day return, skipping the
+    most recent 10 bars to exclude short-term reversal effects (the
+    standard academic momentum-formation convention, e.g. Jegadeesh &
+    Titman 1993 - distinct from momentum_20's 20-day window, which was
+    KILLED for predicting reversal rather than continuation at that
+    much shorter horizon).
+
+    Registered at weight 0.0 pending backtest A/B (2026-07-07 ranking
+    review: measured mean IC +0.032, t=2.00, over the full 750-stock
+    candles/ universe - the strongest signal found in that review, but
+    not yet validated to add ranking signal on its own per this
+    codebase's policy for new factors, see PLAN.md).
+    """
+    PERIOD = 130
+    SKIP   = 10
+
+    @property
+    def name(self):
+        return "mom_12_1"
+
+    def score(self, stock: Stock, index: int = -1) -> Optional[float]:
+        c   = stock.closes
+        n   = len(c)
+        idx = index if index >= 0 else n + index
+        if idx < self.PERIOD or c[idx - self.PERIOD] == 0:
+            return None
+        return (c[idx - self.SKIP] / c[idx - self.PERIOD] - 1.0) * 100.0
+
+
+class Dist52WkHighFactor(BaseScoreFactor):
+    """
+    Closeness to the 52-week (252-bar) high, as a percentage below it
+    (0 = at the high, more negative = further below) - the "52-week high
+    effect" (George & Hwang 2004): proximity to a stock's own 52-week
+    high has been found to predict continuation, not reversal.
+
+    Registered at weight 0.0 pending backtest A/B (2026-07-07 ranking
+    review: measured mean IC +0.032, t=2.06, tied with mom_12_1 for the
+    strongest signal found). Note this pulls in the OPPOSITE direction
+    from BonusComputer's peak-proximity term, which historically
+    penalized closeness to the 52-week high - see BonusComputer for how
+    that conflict was resolved.
+    """
+    LOOKBACK = 252
+
+    @property
+    def name(self):
+        return "dist_52wk_high"
+
+    def score(self, stock: Stock, index: int = -1) -> Optional[float]:
+        h   = stock.highs
+        c   = stock.closes
+        n   = len(c)
+        idx = index if index >= 0 else n + index
+        if idx < 0 or idx >= n:
+            return None
+        lo    = max(0, idx - self.LOOKBACK + 1)
+        hi52  = max(h[lo: idx + 1])
+        if hi52 <= 0:
+            return None
+        return (c[idx] / hi52 - 1.0) * 100.0
 
 
 # class Momentum60Factor(BaseScoreFactor):
@@ -4761,6 +4828,22 @@ class BonusComputer:
     BB_SQUEEZE_BONUS:       float =  3.0   # Squeeze building energy
     BB_SQUEEZE_FIRED:       float =  5.0   # Squeeze just fired
 
+    # Peak-proximity: DISABLED 2026-07-07 (ranking review). This used to
+    # penalize being close to the 52-week high (-5 within 1%, -2 within
+    # 3%, +1 for a 3-8% pullback) on the assumption that proximity to a
+    # high means overextension risk. The new dist_52wk_high factor's
+    # measured IC (+0.032, t=2.06 over the full candles/ universe) says
+    # the opposite: closeness to the 52-week high predicts *higher*
+    # forward returns (the "52-week high effect"), not lower - so this
+    # was actively fighting a real signal. Left at 0 rather than flipped
+    # to a bonus: no A/B evidence yet supports a specific magnitude/shape
+    # for it as a positive contributor either, and dist_52wk_high is now
+    # available as a properly A/B-testable factor for that job instead
+    # of a fixed, unvalidated bonus.
+    PEAK_NEAR_HIGH_PENALTY:   float = 0.0   # was -5.0 (within 1% of 52wk high)
+    PEAK_NEAR_HIGH_PENALTY_3: float = 0.0   # was -2.0 (within 3% of 52wk high)
+    PEAK_PULLBACK_BONUS:      float = 0.0   # was +1.0 (3-8% below 52wk high)
+
     @classmethod
     def compute(cls, stock: Stock, index: int = -1) -> float:
         n   = len(stock.closes)
@@ -4799,14 +4882,15 @@ class BonusComputer:
         except (KeyError, TypeError):
             pass
 
-        # Peak-proximity penalty
+        # Peak-proximity (see class constants above - disabled, measured
+        # evidence contradicts the original penalty's sign)
         try:
             hi52 = max(stock.highs[max(0, idx - 251): idx + 1])
             px   = stock.closes[idx]
             pct  = (hi52 - px) / hi52 * 100.0 if hi52 > 0 else 10.0
-            if   pct < 1: total += -5.0
-            elif pct < 3: total += -2.0
-            elif pct < 8: total +=  1.0
+            if   pct < 1: total += cls.PEAK_NEAR_HIGH_PENALTY
+            elif pct < 3: total += cls.PEAK_NEAR_HIGH_PENALTY_3
+            elif pct < 8: total += cls.PEAK_PULLBACK_BONUS
         except (ValueError, ZeroDivisionError):
             pass
 

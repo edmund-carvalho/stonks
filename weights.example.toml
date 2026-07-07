@@ -16,6 +16,8 @@
 momentum_20     = 0.0   # KILLED - predicts reversal
 sharpe_20       = 0.0   # KILLED - high sharpe = recent strength = reversal
 breakout        = 0.0   # KILLED - breakout already happened
+mom_12_1        = 0.0   # NEW (2026-07-07 review) - awaiting backtest A/B before earning weight
+dist_52wk_high  = 0.0   # NEW (2026-07-07 review) - awaiting backtest A/B before earning weight
 trend_ma        = 0.11111111111111112
 rsi_quality     = 0.11111111111111112
 crossover       = 0.11111111111111112
