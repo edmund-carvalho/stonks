@@ -2021,9 +2021,18 @@ class TTMSqueeze(BaseTechnicalIndicator):
             return {"verdict": "TTM In squeeze", "score": 55, 
                     "color": CLR.CY, "result": {"squeeze": True}}
         else:
-            return {"verdict": "No squeeze", "score": 50, 
+            return {"verdict": "No squeeze", "score": 50,
                     "color": CLR.DM, "result": {"squeeze": False}}
 
+
+# Shared, stateless instances - built once at import time and reused by
+# every Stock. Indicators carry no per-instance state beyond the
+# construction-time parameters set in __init__ (period, stddev, ...); they
+# are never mutated by compute()/classify(), so one instance per class is
+# safe to share across all stocks, including under the ThreadPoolExecutor
+# parallel loading in Stonks._load_all_stocks. Previously each Stock built
+# its own full set (~35 objects x N stocks) purely to call read-only methods.
+TECHNICAL_INDICATORS: List[BaseTechnicalIndicator] = [cls() for cls in BaseTechnicalIndicator._registry]
 
 
 # =============================================================================
@@ -2823,6 +2832,10 @@ class FiftyTwoWeekPosition(BaseFundamentalIndicator):
                 "result": {"hi": hi, "lo": lo, "hi_pct": hi_pct, "lo_pct": lo_pct, "range_pos": range_pos}}
 
 
+# Shared, stateless instances - see TECHNICAL_INDICATORS above for rationale.
+FUNDAMENTAL_INDICATORS: List[BaseFundamentalIndicator] = [cls() for cls in BaseFundamentalIndicator._registry]
+
+
 # =============================================================================
 # 4.  STOCK - Main data container
 # =============================================================================
@@ -2850,15 +2863,19 @@ class Stock:
         self.closes = [c.close for c in self.candles]
         self.volumes = [c.volume for c in self.candles]
 
-        self.indicators = indicators or [cls() for cls in BaseTechnicalIndicator._registry]
+        # Shared, stateless instances (see TECHNICAL_INDICATORS /
+        # FUNDAMENTAL_INDICATORS / SCORE_FACTORS module-level definitions) -
+        # every Stock references the same objects rather than instantiating
+        # its own copies; only per-stock *results* are cached below.
+        self.indicators = indicators or TECHNICAL_INDICATORS
         # Lazy cache: key = indicator name, value = computed result
         self._indicator_cache: Dict[str, Any] = {}
 
-        self.fundamentals = [cls() for cls in BaseFundamentalIndicator._registry]
+        self.fundamentals = FUNDAMENTAL_INDICATORS
         self._fundamental_raw_cache: Dict[str, Any] = {}
         self._fundamental_cache: Dict[str, Any] = {}
 
-        self.scoreFactors = [cls() for cls in BaseScoreFactor._registry]
+        self.scoreFactors = SCORE_FACTORS
         self._scoreFactor_cache: Dict[str, Any] = {}
 
     @staticmethod
@@ -2990,9 +3007,7 @@ class Stock:
         Run a single scoring factor for this stock and return its raw score.
         Used by ScoreTable to display individual factor values.
         """
-        # Find the factor class by name
-        for factor_cls in BaseScoreFactor._registry:
-            factor = factor_cls()
+        for factor in self.scoreFactors:
             if factor.name == factor_name:
                 try:
                     return factor.score(self)
@@ -4143,6 +4158,15 @@ class BullishSetupFactor(BaseScoreFactor):
         combined = (adx_score + candle_score + ret5_score) / 3.0
         return max(0.0, min(100.0, combined))
 
+
+# Shared, stateless instances - see TECHNICAL_INDICATORS (Stock class) for
+# rationale. Referenced by Stock.__init__ despite being defined textually
+# after it - fine, since that reference only executes at call time (when a
+# Stock is actually constructed), by which point the whole module has
+# finished loading and every BaseScoreFactor subclass has registered.
+SCORE_FACTORS: List[BaseScoreFactor] = [cls() for cls in BaseScoreFactor._registry]
+
+
 # ---------------------------------------------------------------------------
 # Bonus computer  (added after normalisation, never normalised itself)
 # ---------------------------------------------------------------------------
@@ -4463,12 +4487,10 @@ class Stonks:
         }
 
         # Use all registered factors that have a weight
-        factors = [f for f in BaseScoreFactor._registry if f().name in fweights]
-        
+        factors = [f for f in SCORE_FACTORS if f.name in fweights]
 
         for stock in self.stocks:
-            for factor_cls in factors:
-                factor = factor_cls()          # create instance (lightweight)
+            for factor in factors:
                 try:
                     raw_scores[factor.name][stock.symbol] = factor.score(stock)
                 except Exception:
