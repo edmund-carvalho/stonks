@@ -3719,21 +3719,45 @@ FACTOR_WEIGHTS: Dict[str, float] = {
     "momentum_20":     0.0,   # KILLED - predicts reversal
     "sharpe_20":       0.0,   # KILLED - high sharpe = recent strength = reversal
     "breakout":        0.0,   # KILLED - breakout already happened
-    "trend_ma":        0.10,
-    "rsi_quality":     0.10,
-    "crossover":       0.10,
-    "volume_trend":    0.05,
-    "bb_entry":        0.15,
-    "pullback_entry":  0.15,
-    "overextension":   0.10,
-    "pivot_proximity": 0.05,
-    "fib_retrace":     0.05,
-    "bullish_setup":   0.10,
-    "gate_strength":   0.05,
+    "trend_ma":        0.11111111111111112,
+    "rsi_quality":     0.11111111111111112,
+    "crossover":       0.11111111111111112,
+    "volume_trend":    0.05555555555555556,
+    "bb_entry":        0.16666666666666666,
+    "pullback_entry":  0.16666666666666666,
+    "overextension":   0.11111111111111112,
+    "pivot_proximity": 0.05555555555555556,
+    # KILLED 2026-07-07 (ranking review) - measured Spearman IC (factor
+    # value vs forward 21-bar return) over the full 750-stock candles/
+    # universe, 66 rebalances/2020-2026: fib_retrace scored -0.029
+    # (t=-3.12), the only statistically significant factor in the whole
+    # set - and its sign is wrong (it *predicts against* itself). A/B
+    # backtest (top-10/hold-21/rebalance-21, technical-only) confirmed:
+    # win rate 53.8% -> 54.9%, portfolio CAGR 37.6% -> 37.6% (flat) with
+    # it zeroed. See PLAN.md for the full methodology.
+    "fib_retrace":     0.0,
+    "bullish_setup":   0.11111111111111112,
+    # KILLED 2026-07-07 (ranking review) - gate_strength is a sigmoid
+    # re-blend of signals already scored by other active factors
+    # (trend/ADX/MFI/Ichimoku - correlated 0.63-0.79 with trend_ma,
+    # sharpe_20, bb_entry, pullback_entry) and measured no standalone
+    # predictive power (mean IC +0.007, t=0.68 - noise). A/B backtest
+    # confirmed zeroing it *helps*: win rate 53.8% -> 54.8%, portfolio
+    # CAGR 37.6% -> 40.6% (+3pp). See PLAN.md for the full methodology.
+    "gate_strength":   0.0,
     "stoch_entry":     0.0,   # NEW (Phase 7) - awaiting backtest A/B before earning weight
     "ha_reversal":     0.0,   # NEW (Phase 7) - awaiting backtest A/B before earning weight
 }
-# Sum of active weights = 1.00
+# Sum of active weights = 1.00. The 9 surviving non-killed factors were
+# proportionally renormalized (each divided by their pre-kill sum of
+# 0.90, e.g. trend_ma's original 0.10 -> 0.10/0.90) rather than having
+# fib_retrace/gate_strength's freed-up 0.10 arbitrarily reassigned to
+# specific factors - no A/B evidence supports favoring any one of the
+# remaining factors over the others, so their *relative* weights are
+# preserved exactly and only the killed factors' share is redistributed.
+# Full float precision kept (not rounded to 4dp) so weights.example.toml
+# - which mirrors these values - reproduces them exactly on load rather
+# than tripping load_weights_file's renormalize-on-mismatch warning.
 
 # Default fundamental sub-category weights (sum = 1.0)
 #

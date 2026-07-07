@@ -10,7 +10,7 @@
     "low_coverage": false,
     "overall": 100.0,
     "symbol": "SHORTHIST",
-    "ta_composite": 58.7
+    "ta_composite": 63.1
   },
   {
     "fa_composite": 50.0,
@@ -23,7 +23,7 @@
     "low_coverage": true,
     "overall": 50.0,
     "symbol": "INDEX_NOFUND",
-    "ta_composite": 55.5
+    "ta_composite": 53.9
   },
   {
     "fa_composite": 41.0,
@@ -36,7 +36,7 @@
     "low_coverage": false,
     "overall": 41.0,
     "symbol": "LARGECAP_TREND",
-    "ta_composite": 47.8
+    "ta_composite": 47.4
   },
   {
     "fa_composite": 11.5,
@@ -49,6 +49,6 @@
     "low_coverage": false,
     "overall": 11.5,
     "symbol": "SMALLCAP_CHOP",
-    "ta_composite": 42.0
+    "ta_composite": 39.6
   }
 ]

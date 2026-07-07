@@ -16,17 +16,17 @@
 momentum_20     = 0.0   # KILLED - predicts reversal
 sharpe_20       = 0.0   # KILLED - high sharpe = recent strength = reversal
 breakout        = 0.0   # KILLED - breakout already happened
-trend_ma        = 0.10
-rsi_quality     = 0.10
-crossover       = 0.10
-volume_trend    = 0.05
-bb_entry        = 0.15
-pullback_entry  = 0.15
-overextension   = 0.10
-pivot_proximity = 0.05
-fib_retrace     = 0.05
-bullish_setup   = 0.10
-gate_strength   = 0.05
+trend_ma        = 0.11111111111111112
+rsi_quality     = 0.11111111111111112
+crossover       = 0.11111111111111112
+volume_trend    = 0.05555555555555556
+bb_entry        = 0.16666666666666666
+pullback_entry  = 0.16666666666666666
+overextension   = 0.11111111111111112
+pivot_proximity = 0.05555555555555556
+fib_retrace     = 0.0   # KILLED - significant negative IC, wrong-signed (see stonks.py FACTOR_WEIGHTS)
+bullish_setup   = 0.11111111111111112
+gate_strength   = 0.0   # KILLED - redundant with other factors, A/B-confirmed to hurt CAGR (see stonks.py FACTOR_WEIGHTS)
 stoch_entry     = 0.0   # NEW (Phase 7) - awaiting backtest A/B before earning weight
 ha_reversal     = 0.0   # NEW (Phase 7) - awaiting backtest A/B before earning weight
 
