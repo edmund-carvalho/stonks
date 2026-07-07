@@ -45,11 +45,14 @@ Code Layout :
 
 from __future__ import annotations
 import argparse
+import bisect
 import json
 import logging
 import math
 import os
 import re
+import statistics
+import sys
 import textwrap
 import tomllib
 from abc import ABC, abstractmethod
@@ -4942,7 +4945,8 @@ class Stonks:
             fund_weight: float = 0.5,
             factor_weights: Optional[Dict[str, float]] = None,
             fundamental_sub_weights: Optional[Dict[str, float]] = None,
-            max_workers: int = None
+            max_workers: int = None,
+            index_map: Optional[Dict[str, int]] = None
     ) -> List[Tuple[Stock, Dict]]:
         """
         Two-pass cross-section normalised ranking - mirrors portfolio_bot exactly.
@@ -4962,6 +4966,18 @@ class Stonks:
         tech_weight" to "both weights actually matter").
 
         fund_weight = 0 → pure technical ranking (default).
+
+        index_map: optional {symbol: bar_index} for point-in-time ranking
+        (used by the `backtest` subcommand) - when given, only stocks
+        present in the map are scored/ranked (a symbol missing from the
+        map means "no bar as-of this date", e.g. not yet listed), and
+        each stock's technical factors/gates/bonus are evaluated at its
+        own mapped index instead of the last bar. Fundamentals are NOT
+        point-in-time (Yahoo Finance snapshots aren't a historical time
+        series in this codebase) - they always reflect today's data
+        regardless of index_map, a known simplification; backtests
+        should generally use fund_weight=0. Default None preserves the
+        exact previous behaviour (every stock scored at its last bar).
         """
         if not self.stocks:
             return []
@@ -4972,6 +4988,14 @@ class Stonks:
         fweights = factor_weights or FACTOR_WEIGHTS
         sfw   = fundamental_sub_weights or FUNDAMENTAL_SUB_WEIGHTS
 
+        if index_map is not None:
+            universe = [s for s in self.stocks if s.symbol in index_map]
+        else:
+            universe = self.stocks
+
+        def _idx(sym: str) -> int:
+            return index_map[sym] if index_map is not None else -1
+
         # -- Pass 1: collect raw factor scores for all stocks ----------
         raw_scores: Dict[str, Dict[str, Optional[float]]] = {
             fname: {} for fname in fweights
@@ -4980,10 +5004,10 @@ class Stonks:
         # Use all registered factors that have a weight
         factors = [f for f in SCORE_FACTORS if f.name in fweights]
 
-        for stock in self.stocks:
+        for stock in universe:
             for factor in factors:
                 try:
-                    raw_scores[factor.name][stock.symbol] = factor.score(stock)
+                    raw_scores[factor.name][stock.symbol] = factor.score(stock, _idx(stock.symbol))
                 except KeyError:
                     # An unknown indicator name is a programmer error (typo
                     # in a factor's get_indicator() call), not a legitimate
@@ -5003,7 +5027,7 @@ class Stonks:
             sub: {} for sub in sfw
         }
         if fund_weight > 0:
-            for stock in self.stocks:
+            for stock in universe:
                 sub_scores = _fund_sub_scores(stock)
                 for sub, val in sub_scores.items():
                     if sub in fund_raw:
@@ -5019,12 +5043,13 @@ class Stonks:
                              # on mostly-neutral filler (see ranking table's
                              # "*" suffix)
         results = []
-        _single = len(self.stocks) == 1
-        for stock in self.stocks:
+        _single = len(universe) == 1
+        for stock in universe:
             sym = stock.symbol
+            idx = _idx(sym)
 
             ta_comp, ta_coverage = _weighted_composite(sym, fweights, raw_scores, normed, use_raw=_single)
-            ta_comp += BonusComputer.compute(stock)
+            ta_comp += BonusComputer.compute(stock, idx)
             ta_comp = max(0.0, min(100.0, ta_comp))
 
             fa_comp, fa_coverage = 0.0, 0.0
@@ -5041,7 +5066,7 @@ class Stonks:
             overall = max(0.0, min(100.0, overall))
 
             # Gate flags
-            gates = stock.gate_flags()
+            gates = stock.gate_flags(idx)
 
             results.append((stock, {
                 "overall":         round(overall, 1),
@@ -5097,47 +5122,286 @@ class Stonks:
         RankingTable.print_ranking(table_rows)
 
 # =============================================================================
+# 8b.  BACKTEST ENGINE
+# =============================================================================
+def _build_trading_calendar(stocks: List[Stock], start: datetime, end: datetime) -> List[datetime]:
+    """
+    Union of every candle timestamp across the universe within [start, end].
+
+    A real fetched dataset already excludes NSE holidays, so the union of
+    what every stock actually traded on is a robust stand-in for a proper
+    trading calendar without needing a separate holiday table here - a
+    stock with gaps just contributes fewer of the dates, it doesn't
+    corrupt the calendar for the others.
+    """
+    dates = set()
+    for s in stocks:
+        for c in s.candles:
+            if start <= c.timestamp <= end:
+                dates.add(c.timestamp)
+    return sorted(dates)
+
+
+def _index_as_of(timestamps: List[datetime], as_of: datetime) -> Optional[int]:
+    """
+    Largest index i such that timestamps[i] <= as_of - the point-in-time
+    "most recent completed bar" lookup a backtest needs (never a bar after
+    `as_of`, so this can't leak future data). None if `as_of` is before
+    the stock's first bar (not listed / no history yet).
+    """
+    idx = bisect.bisect_right(timestamps, as_of) - 1
+    return idx if idx >= 0 else None
+
+
+class BacktestEngine:
+    """
+    Rebalance-and-hold backtest over a universe loaded once.
+
+    At each rebalance date, every stock is scored at its own as-of bar
+    index (see rank_stocks_xnorm's index_map) rather than re-sliced or
+    reloaded from disk - this is only trustworthy because Phase 1-6
+    audited every active factor/gate/bonus for look-ahead safety at
+    historical indices first.
+    """
+    NIFTY_SYMBOLS = ("NIFTY 50", "NIFTY50")
+
+    def __init__(self, app: "Stonks", start: datetime, end: datetime,
+                 rebalance: int, top_n: int, hold: int,
+                 tech_weight: float = 1.0, fund_weight: float = 0.0,
+                 factor_weights: Optional[Dict[str, float]] = None,
+                 fundamental_sub_weights: Optional[Dict[str, float]] = None):
+        self.app = app
+        self.start = start
+        self.end = end
+        self.rebalance = max(1, rebalance)
+        self.top_n = top_n
+        self.hold = max(1, hold)
+        self.tech_weight = tech_weight
+        self.fund_weight = fund_weight
+        self.factor_weights = factor_weights
+        self.fundamental_sub_weights = fundamental_sub_weights
+        self._timestamps: Dict[str, List[datetime]] = {
+            s.symbol: [c.timestamp for c in s.candles] for s in app.stocks
+        }
+
+    def _as_of_index_map(self, as_of: datetime) -> Dict[str, int]:
+        out = {}
+        for stock in self.app.stocks:
+            idx = _index_as_of(self._timestamps[stock.symbol], as_of)
+            if idx is not None:
+                out[stock.symbol] = idx
+        return out
+
+    def _forward_return(self, stock: Stock, idx: int) -> Optional[float]:
+        """Return over the next `hold` bars of THIS stock's own series
+        (trading-day-based, not calendar-day-based). None if the holding
+        window runs off the end of available data or the entry price is 0."""
+        exit_idx = idx + self.hold
+        if exit_idx >= len(stock.closes):
+            return None
+        entry = stock.closes[idx]
+        if entry == 0:
+            return None
+        return (stock.closes[exit_idx] / entry - 1) * 100.0
+
+    def run(self) -> Dict[str, Any]:
+        calendar = _build_trading_calendar(self.app.stocks, self.start, self.end)
+        rebalance_dates = calendar[::self.rebalance]
+
+        rebalances: List[Dict[str, Any]] = []
+        all_pick_returns: List[float] = []
+        universe_avg_returns: List[float] = []
+        nifty_returns: List[float] = []
+
+        for as_of in rebalance_dates:
+            index_map = self._as_of_index_map(as_of)
+            if not index_map:
+                continue
+
+            ranked = self.app.rank_stocks_xnorm(
+                tech_weight=self.tech_weight,
+                fund_weight=self.fund_weight,
+                factor_weights=self.factor_weights,
+                fundamental_sub_weights=self.fundamental_sub_weights,
+                index_map=index_map,
+            )
+            # Deterministic tie-break: stock load order (ThreadPoolExecutor)
+            # isn't guaranteed, so ties in "overall" need an explicit
+            # secondary key for a reproducible top-N pick, not just
+            # whatever arrival order rank_stocks_xnorm's stable sort saw.
+            ranked.sort(key=lambda sr: (-sr[1]["overall"], sr[0].symbol))
+
+            picks = []
+            for stock, score in ranked[:self.top_n]:
+                idx = index_map[stock.symbol]
+                fwd = self._forward_return(stock, idx)
+                picks.append({
+                    "symbol":       stock.symbol,
+                    "entry_score":  score["overall"],
+                    "entry_price":  stock.closes[idx],
+                    "fwd_return":   fwd,
+                })
+                if fwd is not None:
+                    all_pick_returns.append(fwd)
+
+            universe_rets = []
+            for stock in self.app.stocks:
+                idx = index_map.get(stock.symbol)
+                if idx is None:
+                    continue
+                r = self._forward_return(stock, idx)
+                if r is not None:
+                    universe_rets.append(r)
+            universe_avg = statistics.mean(universe_rets) if universe_rets else None
+            if universe_avg is not None:
+                universe_avg_returns.append(universe_avg)
+
+            nifty_ret = None
+            nifty_stock = next((s for s in self.app.stocks if s.symbol.upper() in self.NIFTY_SYMBOLS), None)
+            if nifty_stock is not None:
+                nidx = index_map.get(nifty_stock.symbol)
+                if nidx is not None:
+                    nifty_ret = self._forward_return(nifty_stock, nidx)
+                    if nifty_ret is not None:
+                        nifty_returns.append(nifty_ret)
+
+            rebalances.append({
+                "date":                 as_of.date().isoformat(),
+                "picks":                picks,
+                "universe_avg_return":  universe_avg,
+                "nifty_return":         nifty_ret,
+            })
+
+        summary = {
+            "rebalance_count":      len(rebalances),
+            "pick_count":           sum(len(r["picks"]) for r in rebalances),
+            "valid_pick_count":     len(all_pick_returns),
+            "win_rate":             (sum(1 for r in all_pick_returns if r > 0) / len(all_pick_returns)
+                                      if all_pick_returns else None),
+            "mean_return":          statistics.mean(all_pick_returns) if all_pick_returns else None,
+            "median_return":        statistics.median(all_pick_returns) if all_pick_returns else None,
+            "universe_avg_return":  statistics.mean(universe_avg_returns) if universe_avg_returns else None,
+            "nifty_avg_return":     statistics.mean(nifty_returns) if nifty_returns else None,
+        }
+
+        return {
+            "rebalances": rebalances,
+            "summary":    summary,
+            "params": {
+                "rebalance": self.rebalance, "top_n": self.top_n, "hold": self.hold,
+                "tech_weight": self.tech_weight, "fund_weight": self.fund_weight,
+            },
+        }
+
+
+def print_backtest_report(result: Dict[str, Any]) -> None:
+    headers = ["Date", "Rank", "Symbol", "EntryScore", "EntryPx", "FwdRet%"]
+    rows = []
+    for reb in result["rebalances"]:
+        for i, p in enumerate(reb["picks"], start=1):
+            rows.append([
+                reb["date"], str(i), p["symbol"],
+                f"{p['entry_score']:.1f}",
+                f"{p['entry_price']:.2f}",
+                f"{p['fwd_return']:+.2f}" if p["fwd_return"] is not None else "N/A",
+            ])
+    if rows:
+        _print_table(headers, rows)
+    else:
+        print("No rebalance dates with data in the requested window.")
+
+    s = result["summary"]
+    p = result["params"]
+
+    def _pct(v: Optional[float]) -> str:
+        return f"{v:+.2f}%" if v is not None else "N/A"
+
+    print()
+    print(f"{CLR.BD}Backtest Summary{CLR.E}  "
+          f"(top-{p['top_n']}, hold={p['hold']} bars, rebalance every {p['rebalance']} bars)")
+    print(f"  Rebalances:            {s['rebalance_count']}")
+    print(f"  Picks (with fwd data): {s['valid_pick_count']} / {s['pick_count']}")
+    print(f"  Win rate:              {_pct(s['win_rate'] * 100) if s['win_rate'] is not None else 'N/A'}")
+    print(f"  Mean forward return:   {_pct(s['mean_return'])}")
+    print(f"  Median forward return: {_pct(s['median_return'])}")
+    print(f"  Universe avg return:   {_pct(s['universe_avg_return'])}")
+    print(f"  NIFTY 50 avg return:   {_pct(s['nifty_avg_return'])}")
+
+
+# =============================================================================
 # 9.  CLI
 # =============================================================================
 def parse_args():
     parser = argparse.ArgumentParser(description="stonks - Stock Analysis Tool")
-    parser.add_argument("path", nargs="?", default=os.path.join(".", "data"),            help="JSON file or directory with stock data")
-    parser.add_argument("-r", "--ranking", action="store_true",                          help="Show composite score ranking")
-    parser.add_argument("--tech-weight",   dest="tech_weight", type=float, default=0.85, help="Technical weight for ranking")
-    parser.add_argument("--fund-weight",   dest="fund_weight", type=float, default=0.15, help="Fundamental weight for ranking")
-    parser.add_argument("--from-date",     dest="from_date",   type=str,   default=None, help="Start date (YYYY-MM-DD) for analysis window")
-    parser.add_argument("--to-date",       dest="to_date",     type=str,   default=None, help="End date (YYYY-MM-DD) for analysis window")
-    parser.add_argument("--no-color",      dest="no_color",    action="store_true",      help="Disable ANSI color output")
-    parser.add_argument("--debug",         dest="debug",       action="store_true",      help="Log swallowed exceptions (typos, indicator bugs) to stderr")
-    parser.add_argument("--weights",       dest="weights",     type=str,   default=None, help="TOML file overriding factor/fundamental weights and blend (see weights.example.toml)")
+    subparsers = parser.add_subparsers(dest="command")
 
-    return parser.parse_args()
+    analyze = subparsers.add_parser(
+        "analyze", help="Analyse a watchlist: summary tables, single-stock report, or ranking (default command)")
+    analyze.add_argument("path", nargs="?", default=os.path.join(".", "data"),            help="JSON file or directory with stock data")
+    analyze.add_argument("-r", "--ranking", action="store_true",                          help="Show composite score ranking")
+    analyze.add_argument("--tech-weight",   dest="tech_weight", type=float, default=0.85, help="Technical weight for ranking")
+    analyze.add_argument("--fund-weight",   dest="fund_weight", type=float, default=0.15, help="Fundamental weight for ranking")
+    analyze.add_argument("--from-date",     dest="from_date",   type=str,   default=None, help="Start date (YYYY-MM-DD) for analysis window")
+    analyze.add_argument("--to-date",       dest="to_date",     type=str,   default=None, help="End date (YYYY-MM-DD) for analysis window")
+    analyze.add_argument("--no-color",      dest="no_color",    action="store_true",      help="Disable ANSI color output")
+    analyze.add_argument("--debug",         dest="debug",       action="store_true",      help="Log swallowed exceptions (typos, indicator bugs) to stderr")
+    analyze.add_argument("--weights",       dest="weights",     type=str,   default=None, help="TOML file overriding factor/fundamental weights and blend (see weights.example.toml)")
 
-def main():
+    backtest = subparsers.add_parser(
+        "backtest", help="Rebalance-and-hold backtest of the ranking over historical candle data")
+    backtest.add_argument("path", nargs="?", default=os.path.join(".", "data"),            help="Directory with stock data (full history - do not pre-trim with --from-date/--to-date)")
+    backtest.add_argument("--start",       dest="start",       type=str,   required=True, help="Backtest window start date (YYYY-MM-DD)")
+    backtest.add_argument("--end",         dest="end",         type=str,   required=True, help="Backtest window end date (YYYY-MM-DD)")
+    backtest.add_argument("--rebalance",   dest="rebalance",   type=int,   default=21,    help="Rebalance every N trading bars (default 21, ~1 month)")
+    backtest.add_argument("--top-n",       dest="top_n",       type=int,   default=10,    help="Number of top-ranked stocks to pick each rebalance (default 10)")
+    backtest.add_argument("--hold",        dest="hold",        type=int,   default=21,    help="Holding period in trading bars (default 21)")
+    backtest.add_argument("--tech-weight", dest="tech_weight", type=float, default=1.0,   help="Technical weight for ranking (default 1.0)")
+    backtest.add_argument("--fund-weight", dest="fund_weight", type=float, default=0.0,   help="Fundamental weight for ranking (default 0 - Yahoo fundamentals are a live snapshot, not a historical series, so a nonzero value scores every rebalance date against TODAY's fundamentals)")
+    backtest.add_argument("--weights",     dest="weights",     type=str,   default=None,  help="TOML file overriding factor/fundamental weights and blend (see weights.example.toml)")
+    backtest.add_argument("--no-color",    dest="no_color",    action="store_true",       help="Disable ANSI color output")
+    backtest.add_argument("--debug",       dest="debug",       action="store_true",       help="Log swallowed exceptions (typos, indicator bugs) to stderr")
 
-    args = parse_args()
-    if args.no_color or os.environ.get("NO_COLOR"):
-        CLR.disable()
-    if args.debug:
-        logger.setLevel(logging.DEBUG)
-        logger.addHandler(logging.StreamHandler())
+    # `path` as a bare positional (no subcommand) must keep working exactly
+    # as before backtest was added - default to the `analyze` subcommand
+    # whenever the first token isn't an already-known subcommand/help flag.
+    argv = sys.argv[1:]
+    if not argv or argv[0] not in ("analyze", "backtest", "-h", "--help"):
+        argv = ["analyze"] + argv
 
-    print(_STONKS_BANNER)
+    args = parser.parse_args(argv)
+    return args
 
+
+def _load_weights(weights_path: Optional[str], tech_weight: float, fund_weight: float
+                   ) -> Optional[Tuple[Optional[Dict[str, float]], Optional[Dict[str, float]], float, float]]:
+    """Shared --weights loading for both subcommands. Returns
+    (factor_weights, fundamental_sub_weights, tech_weight, fund_weight), or
+    None on a load error (caller should print nothing further and return)."""
     factor_weights = None
     fundamental_sub_weights = None
-    if args.weights:
+    if weights_path:
         try:
-            factor_weights, fundamental_sub_weights, file_fund_weight = load_weights_file(args.weights)
+            factor_weights, fundamental_sub_weights, file_fund_weight = load_weights_file(weights_path)
         except (ValueError, OSError, tomllib.TOMLDecodeError) as e:
-            print(f"ERROR: failed to load weights file '{args.weights}': {e}")
-            return
+            print(f"ERROR: failed to load weights file '{weights_path}': {e}")
+            return None
         if file_fund_weight is not None:
             # The file's fund_weight is authoritative - set tech_weight to
             # its exact complement so rank_stocks_xnorm's normalisation is
             # a no-op instead of re-diluting it against the CLI default.
-            args.fund_weight = file_fund_weight
-            args.tech_weight = 1.0 - file_fund_weight
+            fund_weight = file_fund_weight
+            tech_weight = 1.0 - file_fund_weight
+    return factor_weights, fundamental_sub_weights, tech_weight, fund_weight
+
+
+def _run_analyze(args) -> None:
+    factor_weights = None
+    fundamental_sub_weights = None
+    if args.weights:
+        loaded = _load_weights(args.weights, args.tech_weight, args.fund_weight)
+        if loaded is None:
+            return
+        factor_weights, fundamental_sub_weights, args.tech_weight, args.fund_weight = loaded
 
     # Parse dates with IST timezone (matching the candle data)
     ist = timezone(timedelta(hours=5, minutes=30))
@@ -5167,6 +5431,67 @@ def main():
         app.technical_summary()
         app.fundamental_summary()
         app.score_summary()
+
+
+def _run_backtest(args) -> None:
+    factor_weights = None
+    fundamental_sub_weights = None
+    if args.weights:
+        loaded = _load_weights(args.weights, args.tech_weight, args.fund_weight)
+        if loaded is None:
+            return
+        factor_weights, fundamental_sub_weights, args.tech_weight, args.fund_weight = loaded
+
+    if args.fund_weight > 0:
+        print("WARNING: --fund-weight > 0 in backtest mode uses TODAY's fundamentals "
+              "at every historical rebalance date (Yahoo fundamentals aren't a "
+              "historical time series in this tool) - technical-only (default) is "
+              "the historically-honest mode.")
+
+    ist = timezone(timedelta(hours=5, minutes=30))
+    try:
+        start_date = datetime.fromisoformat(args.start).replace(tzinfo=ist)
+        end_date = datetime.fromisoformat(args.end).replace(tzinfo=ist)
+    except ValueError as e:
+        print(f"ERROR: invalid --start/--end date: {e}")
+        return
+    if start_date >= end_date:
+        print("ERROR: --start must be before --end.")
+        return
+
+    # Load the FULL history once - never pass from_date/to_date here, since
+    # every rebalance/forward-return calculation depends on bar indices
+    # matching the same series the indicators were computed over.
+    precompute_mode = PreComputeMode.PCM_ALL if args.fund_weight > 0 else PreComputeMode.PCM_TECHNICAL
+    app = Stonks(args.path, precompute_mode=precompute_mode)
+
+    if not app.stocks:
+        print("ERROR: No valid stock data found.")
+        return
+
+    engine = BacktestEngine(
+        app, start_date, end_date, args.rebalance, args.top_n, args.hold,
+        tech_weight=args.tech_weight, fund_weight=args.fund_weight,
+        factor_weights=factor_weights, fundamental_sub_weights=fundamental_sub_weights,
+    )
+    result = engine.run()
+    print_backtest_report(result)
+
+
+def main():
+    args = parse_args()
+    if args.no_color or os.environ.get("NO_COLOR"):
+        CLR.disable()
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+        logger.addHandler(logging.StreamHandler())
+
+    print(_STONKS_BANNER)
+
+    if args.command == "backtest":
+        _run_backtest(args)
+    else:
+        _run_analyze(args)
 
 if __name__ == "__main__":
     main()

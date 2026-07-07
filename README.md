@@ -160,8 +160,19 @@ python stonks.py candles/ -r --tech-weight 0.85 --fund-weight 0.15
 ```
 
 > [!CAUTION]
-> Running randomized analysis of 750 stocks with over 1200 daily candle history we have a **win ratio of less than 30% for the top 10 ranked stocks !!** with a 1 month holding period.
-> This is pretty much useless at this point :)
+> Original informal finding (pre-dates the Phase 1-6 bug fixes, ranking rewrite, and look-ahead
+> audit below): running randomized analysis of 750 stocks with over 1200 daily candle history
+> gave a **win ratio of less than 30% for the top 10 ranked stocks !!** with a 1 month holding
+> period. This is pretty much useless at this point :)
+>
+> There is now a dedicated `backtest` subcommand (`python stonks.py backtest data/ --start ...
+> --end ... --top-n 10 --hold 21`, see [Command Line Reference](#stonkspy)) that reproduces this
+> kind of measurement on demand instead of as a one-off. Re-running it on this repo's small local
+> `data/` universe (12 stocks, not the original 750) over its full available history gives a win
+> rate close to a coin flip (~50%) rather than <30% - encouraging, but not a like-for-like
+> comparison (universe size matters a lot for this kind of measurement) and not yet re-validated
+> against a large universe. Treat the ranking as a screening aid, not a trading signal, until
+> that's done.
 
 ---
 
@@ -406,8 +417,12 @@ usage: python kite.py --job JOB_FILE [--output-dir DIR] [--days N] [--update] [-
 
 ### `stonks.py`
 
+`stonks.py` has two subcommands, `analyze` (default) and `backtest`. Omitting the subcommand
+name runs `analyze` - every invocation shown elsewhere in this README (`python stonks.py data/ -r`,
+etc.) keeps working unchanged.
+
 ```
-usage: python stonks.py [-h] [-r] [--tech-weight TECH_WEIGHT] [--fund-weight FUND_WEIGHT]
+usage: python stonks.py [analyze] [-h] [-r] [--tech-weight TECH_WEIGHT] [--fund-weight FUND_WEIGHT]
                          [--from-date FROM_DATE] [--to-date TO_DATE] [--no-color] [--debug]
                          [--weights WEIGHTS] [path]
 ```
@@ -421,6 +436,38 @@ usage: python stonks.py [-h] [-r] [--tech-weight TECH_WEIGHT] [--fund-weight FUN
 - `--no-color` : Disable ANSI color output (also respects the `NO_COLOR` environment variable).
 - `--debug` : Log swallowed exceptions (typos, indicator bugs) to stderr - silent by default.
 - `--weights` : TOML file overriding factor/fundamental weights and the tech/fund blend - see [Weights configuration](#4-weights-configuration).
+
+```
+usage: python stonks.py backtest [-h] --start START --end END [--rebalance REBALANCE]
+                                  [--top-n TOP_N] [--hold HOLD] [--tech-weight TECH_WEIGHT]
+                                  [--fund-weight FUND_WEIGHT] [--weights WEIGHTS]
+                                  [--no-color] [--debug] [path]
+```
+
+Rebalance-and-hold backtest of the ranking over historical candle data - the harness behind the
+win-rate caution note above. Loads the full candle history once (do not pre-trim `PATH` with
+`--from-date`/`--to-date` - there is no such flag here on purpose) and re-scores the universe at
+each rebalance date using the *bar as of that date*, never a re-slice or reload, so every active
+factor/gate/bonus needs to be look-ahead-safe at historical indices - the codebase has been
+audited for this (see `PLAN.md` Phase 6 in a local checkout).
+
+- `PATH` : directory of candle JSONs (default `./data`).
+- `--start` / `--end` : backtest window (`YYYY-MM-DD`), required.
+- `--rebalance` : rebalance every N trading bars (default 21, ~1 month).
+- `--top-n` : number of top-ranked stocks picked at each rebalance (default 10).
+- `--hold` : holding period in trading bars (default 21). A pick whose holding window runs past
+  the end of available data is skipped from the return statistics (shown as `N/A` in the table).
+- `--tech-weight` / `--fund-weight` : same semantics as `analyze`, but default to `1.0`/`0.0`.
+  Yahoo Finance fundamentals are a live snapshot, not a historical time series in this codebase -
+  a nonzero `--fund-weight` scores every historical rebalance date against **today's**
+  fundamentals, which is not point-in-time correct (a warning is printed). Technical-only
+  (the default) is the historically-honest mode.
+- `--weights` : same TOML override as `analyze`.
+- `--no-color` / `--debug` : same as `analyze`.
+
+Output is a per-rebalance pick table followed by a summary (win rate, mean/median forward
+return, vs. universe-average and vs. a `NIFTY 50` stock in the universe if present).
+
 ---
 
 ## Example Walkthrough
