@@ -3697,8 +3697,11 @@ class ScoreTable:
 #   (which classify for display), Factors exist solely for ranking.
 #
 # xnorm(vals) → Dict[str, float]
-#   Min-max scale a {symbol: raw_score} dict to [0, 100] across the universe.
-#   Stocks with None scores get 50 (neutral).  Identical values all get 50.
+#   Percentile-rank scale a {symbol: raw_score} dict to [0, 100] across the
+#   universe (fractional ranking for ties). Stocks with None scores are
+#   excluded from the rank pool and renormalized away in
+#   Stonks._weighted_composite rather than defaulted to 50 - see xnorm's
+#   own docstring for why (Phase 3).
 #
 # BonusComputer.compute(stock, index) → float
 #   Candlestick + Ichimoku bonus + peak-distance penalty.
@@ -3940,7 +3943,7 @@ class BaseScoreFactor(ABC):
         pass
 
 # ---------------------------------------------------------------------------
-# 13 Factor implementations
+# Factor implementations (see FACTOR_WEIGHTS above for the full active list)
 # ---------------------------------------------------------------------------
 
 class Momentum20Factor(BaseScoreFactor):
@@ -3991,11 +3994,15 @@ class TrendMAFactor(BaseScoreFactor):
         c   = stock.closes
         n   = len(c)
         idx = index if index >= 0 else n + index
+        if idx < 0 or idx >= n:
+            return None
         px  = c[idx]
         s20  = _sma_val(c, 20,  idx)
+        if s20 is None:
+            return None  # <20 bars of history - no trend signal yet, not a 0
         s50  = _sma_val(c, 50,  idx)
         s200 = _sma_val(c, 200, idx)
-        hits  = sum([1 if s20  and px > s20  else 0,
+        hits  = sum([1 if px > s20  else 0,
                      1 if s50  and px > s50  else 0,
                      1 if s200 and px > s200 else 0])
         denom = 1 + (1 if s50 else 0) + (1 if s200 else 0)
@@ -4024,8 +4031,11 @@ class RSIQualityFactor(BaseScoreFactor):
     def score(self, stock: Stock, index: int = -1) -> Optional[float]:
         try:
             rsi_s = stock.get_indicator("RSI(14)")
-            rsi_v = rsi_s[index] if rsi_s[index] is not None else 50.0
-            
+            idx = _norm_index(index, len(rsi_s))
+            if idx < 0 or idx >= len(rsi_s) or rsi_s[idx] is None:
+                return None  # RSI warmup not complete / indicator unavailable
+            rsi_v = rsi_s[idx]
+
             # Get market cap for adjusted thresholds
             cap = stock.metadata.get("capital", "").upper()
             if "SMALL" in cap:
@@ -4037,14 +4047,15 @@ class RSIQualityFactor(BaseScoreFactor):
             else:
                 sweet_mid = 47
                 steepness = 0.13
-            
+
             # Sigmoid: smooth S-curve centered at sweet_mid
             # Score 100 when RSI << sweet_mid, Score 0 when RSI >> sweet_mid
             raw = 100.0 / (1.0 + math.exp((rsi_v - sweet_mid) * steepness))
-            return raw  
+            return raw
 
-        except (KeyError, IndexError, TypeError):
-            return 50.0
+        except (KeyError, IndexError, TypeError) as e:
+            _log_swallowed("factor_score:rsi_quality", stock.symbol, e)
+            return None
 
 
 class Sharpe20Factor(BaseScoreFactor):
@@ -4120,12 +4131,12 @@ class BreakoutFactor(BaseScoreFactor):
         n   = len(c)
         idx = index if index >= 0 else n + index
         if idx < 20:
-            return 30.0  # Neutral for insufficient data
-        
+            return None  # insufficient history for SMA20, not a score
+
         s20 = _sma_val(c, 20, idx)
         if not s20:
-            return 30.0
-        
+            return None
+
         px = c[idx]
         
         # Distance above SMA20 as percentage (continuous)
@@ -4171,15 +4182,19 @@ class PullbackEntryFactor(BaseScoreFactor):
         n = len(c)
         idx = index if index >= 0 else n + index
         if idx < 20:
-            return 30.0
-        
+            return None  # insufficient history for SMA20, not a score
+
         s20 = _sma_val(c, 20, idx)
-        if not s20 or c[idx] <= s20:
-            return 20.0 + min(30.0, (c[idx] / s20 - 1.0) * 200) if s20 else 20.0
-        
+        if not s20:
+            return None
+        if c[idx] <= s20:
+            return 20.0 + min(30.0, (c[idx] / s20 - 1.0) * 200)
+
         try:
-            rsi_v = stock.get_indicator("RSI(14)")[idx] or 50.0
-        except (KeyError, IndexError, TypeError):
+            rsi_series = stock.get_indicator("RSI(14)")
+            rsi_v = rsi_series[idx] if rsi_series[idx] is not None else 50.0
+        except (KeyError, IndexError, TypeError) as e:
+            _log_swallowed("factor_score:pullback_entry", stock.symbol, e)
             rsi_v = 50.0
         
         if rsi_v >= 65:
@@ -4234,7 +4249,18 @@ class CrossoverFactor(BaseScoreFactor):
             macd_data = stock.get_indicator("MACD")
             hist_now  = macd_data["histogram"][idx]
             hist_prev = macd_data["histogram"][idx - 1] if idx >= 1 else 0
-            
+            px        = c[idx]
+
+            # Histogram is in rupee units - scale by price first so the
+            # momentum term is comparable across stocks at different price
+            # levels (a ₹0.30 histogram is a strong signal for a ₹50 stock
+            # and noise for a ₹3000 one; raw abs(hist)*100 saturated the
+            # cap instantly for low-priced stocks and never moved for
+            # high-priced ones). Empirically |hist|/px*100 has a median
+            # ~0.45% and p90 ~1.2% across the real dataset, so *20 reaches
+            # the 30-point cap around a ~1.5% histogram-to-price ratio.
+            hist_pct = (hist_now / px * 100.0) if px > 0 else 0.0
+
             # Continuous mapping based on histogram value and direction
             if hist_now > 0 and hist_prev <= 0:
                 macd_score = 90.0  # Strong bullish crossover
@@ -4242,10 +4268,10 @@ class CrossoverFactor(BaseScoreFactor):
                 macd_score = 10.0  # Strong bearish crossover
             elif hist_now > 0:
                 # Bullish zone: 60-90 based on momentum
-                macd_score = 60.0 + min(30, abs(hist_now) * 100)
+                macd_score = 60.0 + min(30, abs(hist_pct) * 20)
             else:
                 # Bearish zone: 10-40 based on momentum
-                macd_score = 40.0 - min(30, abs(hist_now) * 100)
+                macd_score = 40.0 - min(30, abs(hist_pct) * 20)
         except (KeyError, IndexError, TypeError):
             pass
 
@@ -4317,7 +4343,7 @@ class OverextensionFactor(BaseScoreFactor):
         s50 = _sma_val(c, 50, idx)
         ref = s50 or _sma_val(c, 20, idx)
         if ref is None:
-            return 50.0
+            return None  # <20 bars of history, not a neutral score
         
         gap_pct = (px / ref - 1.0) * 100.0
         
@@ -4343,7 +4369,7 @@ class PivotProximityFactor(BaseScoreFactor):
             n   = len(stock.closes)
             idx = index if index >= 0 else n + index
             if not piv_per_bar or idx < 0 or idx >= len(piv_per_bar) or piv_per_bar[idx] is None:
-                return 50.0
+                return None  # <1 completed prior month of history yet
             piv = piv_per_bar[idx]
             px  = stock.closes[idx]
             pp  = piv["pp"]
@@ -4390,8 +4416,9 @@ class PivotProximityFactor(BaseScoreFactor):
                 distance = (s3 - px) / total_range
                 return max(0.0, 15.0 - distance * 30.0)
                 
-        except (KeyError, IndexError, TypeError, ZeroDivisionError):
-            return 50.0
+        except (KeyError, IndexError, TypeError, ZeroDivisionError) as e:
+            _log_swallowed("factor_score:pivot_proximity", stock.symbol, e)
+            return None
 
 
 class FibRetraceFactor(BaseScoreFactor):
@@ -4414,14 +4441,14 @@ class FibRetraceFactor(BaseScoreFactor):
             n = len(stock.closes)
             idx = index if index >= 0 else n + index
             if idx >= len(fib) or not fib[idx]:
-                return 50.0
-            
+                return None  # indicator not computed for this bar
+
             # Pull the already-computed score from the indicator
             hi = fib[idx]["hi"]
             lo = fib[idx]["lo"]
             px = stock.closes[idx]
             if hi is None or lo is None or hi == lo:
-                return 50.0
+                return 50.0  # genuine flat-range neutral, not missing data
             
             retrace = (hi - px) / (hi - lo) * 100.0
             
@@ -4434,8 +4461,9 @@ class FibRetraceFactor(BaseScoreFactor):
             elif retrace <= 78.6:  return 80.0 - ((retrace - 61.8) / 16.8) * 25.0
             elif retrace <= 100:   return 55.0 - ((retrace - 78.6) / 21.4) * 30.0
             else:                  return max(0, 25.0 - ((retrace - 100) / 27.2) * 25.0)
-        except:
-            return 50.0
+        except (KeyError, IndexError, TypeError, ZeroDivisionError) as e:
+            _log_swallowed("factor_score:fib_retrace", stock.symbol, e)
+            return None
 
 
 class GateStrengthFactor(BaseScoreFactor):
@@ -4485,16 +4513,18 @@ class GateStrengthFactor(BaseScoreFactor):
             if adx_v is not None:
                 adx = 100.0 / (1.0 + math.exp(-(adx_v - 25) * 0.1))
                 strengths.append(adx)
-        except: pass
-        
+        except (KeyError, IndexError, TypeError) as e:
+            _log_swallowed("factor_score:gate_strength:adx", stock.symbol, e)
+
         # MFI: sigmoid centered at MFI 50 (lower MFI = higher score)
         try:
             mfi_v = stock.get_indicator("MFI(14)")[idx]
             if mfi_v is not None:
                 mfi = 100.0 / (1.0 + math.exp((mfi_v - 50) * 0.08))
                 strengths.append(mfi)
-        except: pass
-        
+        except (KeyError, IndexError, TypeError) as e:
+            _log_swallowed("factor_score:gate_strength:mfi", stock.symbol, e)
+
         # Ichimoku: cloud position
         try:
             ichi = stock.get_indicator("Ichimoku")
@@ -4506,19 +4536,21 @@ class GateStrengthFactor(BaseScoreFactor):
             if "Above" in pos: strengths.append(80.0)
             elif "Inside" in pos: strengths.append(50.0)
             elif "Below" in pos: strengths.append(20.0)
-        except: pass
-        
+        except (KeyError, IndexError, TypeError) as e:
+            _log_swallowed("factor_score:gate_strength:ichimoku", stock.symbol, e)
+
         # BB Squeeze: bonus when active
         try:
             ttm = stock.get_indicator("TTM_Squeeze")
             squeeze_series = ttm["squeeze"]
             if idx < len(squeeze_series) and squeeze_series[idx]:
                 strengths.append(100.0)
-        except: pass
-        
+        except (KeyError, IndexError, TypeError) as e:
+            _log_swallowed("factor_score:gate_strength:ttm_squeeze", stock.symbol, e)
+
         if not strengths:
-            return 50.0
-        
+            return None  # no gate component computed - genuinely missing, not neutral
+
         return sum(strengths) / len(strengths)
 
 class BullishSetupFactor(BaseScoreFactor):
@@ -4529,8 +4561,14 @@ class BullishSetupFactor(BaseScoreFactor):
       1. ADX direction: +DI > -DI (bullish trend alignment)
       2. CandleScore: uses the indicator's own classify score (0-100)
       3. Ret(5) extension: rewards pullbacks, penalizes recent run-ups
-    
-    Each component is scored 0-100, then averaged equally.
+
+    Each component is scored 0-100 and averaged over whichever components
+    actually had data - a component whose underlying indicator raised
+    (not computed / KeyError) is excluded from the average entirely
+    rather than silently diluting it with a 0.0 "worst case" default (the
+    same renormalize-over-available pattern _weighted_composite uses one
+    level up). All three missing → None (genuinely no data), not a
+    fabricated 0 (the least bullish score possible).
     """
     @property
     def name(self): return "bullish_setup"
@@ -4540,41 +4578,45 @@ class BullishSetupFactor(BaseScoreFactor):
         n = len(c)
         idx = index if index >= 0 else n + index
 
+        components = []
+
         # ---------- ADX direction ----------
-        adx_score = 0.0
         try:
             adx_data = stock.get_indicator("ADX(14)")
             pdi = adx_data["+di"][idx]
             mdi = adx_data["-di"][idx]
-            if pdi is not None and mdi is not None and pdi > mdi:
-                adx_score = 100.0 / (1.0 + math.exp(-(pdi - mdi) * 0.3))
-        except:
-            pass
+            if pdi is not None and mdi is not None:
+                adx_score = 100.0 / (1.0 + math.exp(-(pdi - mdi) * 0.3)) if pdi > mdi else 0.0
+                components.append(adx_score)
+        except (KeyError, IndexError, TypeError) as e:
+            _log_swallowed("factor_score:bullish_setup:adx", stock.symbol, e)
 
         # ---------- CandleScore ----------
-        candle_score = 0.0
         try:
             cs_data = stock.get_indicator("CandleScore")
             cs_vals = cs_data.get("vals", []) if isinstance(cs_data, dict) else cs_data
             cs_val = cs_vals[idx] if idx < len(cs_vals) else None
-            if cs_val is not None and cs_val >= 3:
-                candle_score = min(100.0, cs_val * 20.0)  # +3→60, +5→100
-        except:
-            pass
+            if cs_val is not None:
+                candle_score = min(100.0, cs_val * 20.0) if cs_val >= 3 else 0.0  # +3→60, +5→100
+                components.append(candle_score)
+        except (KeyError, IndexError, TypeError) as e:
+            _log_swallowed("factor_score:bullish_setup:candle_score", stock.symbol, e)
 
         # ---------- Ret(5) extension ----------
-        ret5_score = 0.0
         try:
             ret5_data = stock.get_indicator("Ret(5)")
             ret5_vals = ret5_data.get("vals", []) if isinstance(ret5_data, dict) else ret5_data
             ret5 = ret5_vals[idx] if idx < len(ret5_vals) else None
             if ret5 is not None:
                 ret5_score = 100.0 / (1.0 + math.exp(ret5 * 0.3))
-        except:
-            pass
+                components.append(ret5_score)
+        except (KeyError, IndexError, TypeError) as e:
+            _log_swallowed("factor_score:bullish_setup:ret5", stock.symbol, e)
 
-        # Combine (equal weight average)
-        combined = (adx_score + candle_score + ret5_score) / 3.0
+        if not components:
+            return None
+
+        combined = sum(components) / len(components)
         return max(0.0, min(100.0, combined))
 
 

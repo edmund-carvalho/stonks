@@ -13,13 +13,13 @@
       "picks": [
         {
           "entry_price": 245.7,
-          "entry_score": 62.5,
+          "entry_score": 65.0,
           "fwd_return": 1.465201,
           "symbol": "LARGECAP_TREND"
         },
         {
           "entry_price": 24712.05,
-          "entry_score": 55.5,
+          "entry_score": 49.7,
           "fwd_return": 1.056367,
           "symbol": "INDEX_NOFUND"
         }
@@ -73,18 +73,18 @@
       "picks": [
         {
           "entry_price": 243.3,
-          "entry_score": 67.8,
+          "entry_score": 71.2,
           "fwd_return": 3.884094,
           "symbol": "LARGECAP_TREND"
         },
         {
-          "entry_price": 26215.55,
-          "entry_score": 49.5,
-          "fwd_return": -1.209206,
-          "symbol": "INDEX_NOFUND"
+          "entry_price": 265.8,
+          "entry_score": 47.0,
+          "fwd_return": -10.233258,
+          "symbol": "SHORTHIST"
         }
       ],
-      "portfolio_return": 1.337444,
+      "portfolio_return": -3.174582,
       "universe_avg_return": -3.875982
     },
     {
@@ -93,13 +93,13 @@
       "picks": [
         {
           "entry_price": 414.0,
-          "entry_score": 60.8,
+          "entry_score": 67.5,
           "fwd_return": -6.60628,
           "symbol": "SMALLCAP_CHOP"
         },
         {
           "entry_price": 257.6,
-          "entry_score": 53.8,
+          "entry_score": 50.5,
           "fwd_return": -0.427019,
           "symbol": "LARGECAP_TREND"
         }
@@ -112,16 +112,16 @@
       "nifty_return": null,
       "picks": [
         {
-          "entry_price": 374.95,
-          "entry_score": 63.7,
-          "fwd_return": 0.080011,
-          "symbol": "SMALLCAP_CHOP"
-        },
-        {
           "entry_price": 25418.9,
-          "entry_score": 56.3,
+          "entry_score": 63.0,
           "fwd_return": 2.104536,
           "symbol": "INDEX_NOFUND"
+        },
+        {
+          "entry_price": 374.95,
+          "entry_score": 57.0,
+          "fwd_return": 0.080011,
+          "symbol": "SMALLCAP_CHOP"
         }
       ],
       "portfolio_return": 1.092274,
@@ -132,19 +132,19 @@
       "nifty_return": null,
       "picks": [
         {
-          "entry_price": 369.4,
-          "entry_score": 53.3,
-          "fwd_return": -5.860855,
-          "symbol": "SMALLCAP_CHOP"
+          "entry_price": 25496.55,
+          "entry_score": 56.0,
+          "fwd_return": -9.199088,
+          "symbol": "INDEX_NOFUND"
         },
         {
-          "entry_price": 165.74,
-          "entry_score": 52.0,
-          "fwd_return": 9.394232,
-          "symbol": "SHORTHIST"
+          "entry_price": 369.4,
+          "entry_score": 50.0,
+          "fwd_return": -5.860855,
+          "symbol": "SMALLCAP_CHOP"
         }
       ],
-      "portfolio_return": 1.766688,
+      "portfolio_return": -7.529972,
       "universe_avg_return": -1.851578
     },
     {
@@ -153,18 +153,18 @@
       "picks": [
         {
           "entry_price": 183.18,
-          "entry_score": 62.0,
+          "entry_score": 58.7,
           "fwd_return": 24.773447,
           "symbol": "SHORTHIST"
         },
         {
-          "entry_price": 191.18,
-          "entry_score": 50.3,
-          "fwd_return": 6.873104,
-          "symbol": "LARGECAP_TREND"
+          "entry_price": 346.4,
+          "entry_score": 50.0,
+          "fwd_return": 7.736721,
+          "symbol": "SMALLCAP_CHOP"
         }
       ],
-      "portfolio_return": 15.823275,
+      "portfolio_return": 16.255084,
       "universe_avg_return": 11.69127
     },
     {
@@ -189,16 +189,16 @@
     }
   ],
   "summary": {
-    "mean_return": 1.367048,
-    "median_return": -0.076434,
+    "mean_return": -0.119272,
+    "median_return": -0.329949,
     "nifty_avg_return": null,
     "nifty_cagr": null,
     "pick_count": 18,
-    "portfolio_cagr": 15.738751,
+    "portfolio_cagr": -3.664435,
     "rebalance_count": 9,
     "universe_avg_return": 0.860359,
     "universe_cagr": 9.345619,
     "valid_pick_count": 18,
-    "win_rate": 0.5
+    "win_rate": 0.444444
   }
 }
