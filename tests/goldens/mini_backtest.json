@@ -24,6 +24,7 @@
           "symbol": "INDEX_NOFUND"
         }
       ],
+      "portfolio_return": 1.260784,
       "universe_avg_return": 4.323775
     },
     {
@@ -43,6 +44,7 @@
           "symbol": "LARGECAP_TREND"
         }
       ],
+      "portfolio_return": 0.317941,
       "universe_avg_return": 0.95453
     },
     {
@@ -62,6 +64,7 @@
           "symbol": "SHORTHIST"
         }
       ],
+      "portfolio_return": -1.507249,
       "universe_avg_return": -0.779663
     },
     {
@@ -81,6 +84,7 @@
           "symbol": "INDEX_NOFUND"
         }
       ],
+      "portfolio_return": 1.337444,
       "universe_avg_return": -3.875982
     },
     {
@@ -100,6 +104,7 @@
           "symbol": "LARGECAP_TREND"
         }
       ],
+      "portfolio_return": -3.516649,
       "universe_avg_return": -3.464445
     },
     {
@@ -119,6 +124,7 @@
           "symbol": "INDEX_NOFUND"
         }
       ],
+      "portfolio_return": 1.092274,
       "universe_avg_return": 4.288206
     },
     {
@@ -138,6 +144,7 @@
           "symbol": "SHORTHIST"
         }
       ],
+      "portfolio_return": 1.766688,
       "universe_avg_return": -1.851578
     },
     {
@@ -157,6 +164,7 @@
           "symbol": "LARGECAP_TREND"
         }
       ],
+      "portfolio_return": 15.823275,
       "universe_avg_return": 11.69127
     },
     {
@@ -176,6 +184,7 @@
           "symbol": "SHORTHIST"
         }
       ],
+      "portfolio_return": -4.27108,
       "universe_avg_return": -3.542883
     }
   ],
@@ -183,9 +192,12 @@
     "mean_return": 1.367048,
     "median_return": -0.076434,
     "nifty_avg_return": null,
+    "nifty_cagr": null,
     "pick_count": 18,
+    "portfolio_cagr": 15.738751,
     "rebalance_count": 9,
     "universe_avg_return": 0.860359,
+    "universe_cagr": 9.345619,
     "valid_pick_count": 18,
     "win_rate": 0.5
   }

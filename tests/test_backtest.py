@@ -48,6 +48,41 @@ def _mk_engine(hold=5, stocks=None):
 
 
 # ---------------------------------------------------------------------------
+# _compound_cagr
+# ---------------------------------------------------------------------------
+
+def test_compound_cagr_matches_hand_computation():
+    # +10% then +10%: equity = 1.1*1.1 = 1.21 over 2 periods of 126 bars
+    # each (252 bars total = 1 year) -> CAGR = 21%.
+    cagr = stonks._compound_cagr([10.0, 10.0], bars_per_period=126)
+    assert cagr == pytest.approx(21.0, abs=1e-9)
+
+
+def test_compound_cagr_flat_returns_zero():
+    cagr = stonks._compound_cagr([0.0, 0.0, 0.0], bars_per_period=21)
+    assert cagr == pytest.approx(0.0, abs=1e-9)
+
+
+def test_compound_cagr_empty_is_none():
+    assert stonks._compound_cagr([], bars_per_period=21) is None
+
+
+def test_compound_cagr_total_wipeout_is_none():
+    # A single -100% period drives equity to exactly 0 - undefined CAGR
+    # past a total loss, not a crash from a negative-base fractional power.
+    assert stonks._compound_cagr([-100.0], bars_per_period=21) is None
+
+
+def test_compound_cagr_annualizes_by_rebalance_cadence_not_period_count():
+    # Same +5% single period, but spanning a full year (252 bars) instead
+    # of one month (21 bars) - annualizing should differ a lot.
+    monthly = stonks._compound_cagr([5.0], bars_per_period=21)
+    yearly = stonks._compound_cagr([5.0], bars_per_period=252)
+    assert yearly == pytest.approx(5.0, abs=1e-9)
+    assert monthly > yearly  # same raw return compressed into 1/12th the time
+
+
+# ---------------------------------------------------------------------------
 # _index_as_of
 # ---------------------------------------------------------------------------
 

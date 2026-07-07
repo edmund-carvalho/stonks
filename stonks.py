@@ -5142,6 +5142,32 @@ def _build_trading_calendar(stocks: List[Stock], start: datetime, end: datetime)
     return sorted(dates)
 
 
+def _compound_cagr(period_returns_pct: List[float], bars_per_period: int,
+                    trading_days_per_year: int = 252) -> Optional[float]:
+    """
+    Annualized (CAGR) return from a sequence of per-period percentage
+    returns, compounded in order and annualized by the number of trading
+    bars each period actually spans (`bars_per_period` - the rebalance
+    cadence, i.e. how often the chain re-executes; NOT the `hold` window
+    used to measure any single period's return, which may differ from
+    the rebalance cadence - see BacktestEngine.run()'s docstring on this
+    approximation). None if there are no periods, or if the chain ever
+    goes non-positive (a >=100% loss in some period - CAGR is undefined
+    past a total wipeout).
+    """
+    if not period_returns_pct:
+        return None
+    equity = 1.0
+    for r in period_returns_pct:
+        equity *= (1.0 + r / 100.0)
+        if equity <= 0:
+            return None
+    years = (len(period_returns_pct) * bars_per_period) / trading_days_per_year
+    if years <= 0:
+        return None
+    return (equity ** (1.0 / years) - 1.0) * 100.0
+
+
 def _index_as_of(timestamps: List[datetime], as_of: datetime) -> Optional[int]:
     """
     Largest index i such that timestamps[i] <= as_of - the point-in-time
@@ -5210,6 +5236,7 @@ class BacktestEngine:
 
         rebalances: List[Dict[str, Any]] = []
         all_pick_returns: List[float] = []
+        portfolio_period_returns: List[float] = []  # one per rebalance, for CAGR chaining
         universe_avg_returns: List[float] = []
         nifty_returns: List[float] = []
 
@@ -5244,6 +5271,16 @@ class BacktestEngine:
                 if fwd is not None:
                     all_pick_returns.append(fwd)
 
+            # Equal-weight portfolio return for THIS rebalance period - mean
+            # of this period's own picks (not the whole universe), used to
+            # chain a compounding equity curve for CAGR. A period with zero
+            # valid picks (e.g. the last one, near the end of history)
+            # contributes nothing to the chain rather than a fabricated 0%.
+            period_valid = [p["fwd_return"] for p in picks if p["fwd_return"] is not None]
+            portfolio_return = statistics.mean(period_valid) if period_valid else None
+            if portfolio_return is not None:
+                portfolio_period_returns.append(portfolio_return)
+
             universe_rets = []
             for stock in self.app.stocks:
                 idx = index_map.get(stock.symbol)
@@ -5268,10 +5305,17 @@ class BacktestEngine:
             rebalances.append({
                 "date":                 as_of.date().isoformat(),
                 "picks":                picks,
+                "portfolio_return":     portfolio_return,
                 "universe_avg_return":  universe_avg,
                 "nifty_return":         nifty_ret,
             })
 
+        # CAGR chains are annualized by the rebalance cadence (how often the
+        # chain re-executes), not by `hold` (how each individual period's
+        # return was measured) - see _compound_cagr's docstring. This is an
+        # approximation whenever hold != rebalance (overlapping or gapped
+        # holding periods aren't modeled); it's exact when they're equal,
+        # which is also the CLI's default for both (21/21).
         summary = {
             "rebalance_count":      len(rebalances),
             "pick_count":           sum(len(r["picks"]) for r in rebalances),
@@ -5282,6 +5326,9 @@ class BacktestEngine:
             "median_return":        statistics.median(all_pick_returns) if all_pick_returns else None,
             "universe_avg_return":  statistics.mean(universe_avg_returns) if universe_avg_returns else None,
             "nifty_avg_return":     statistics.mean(nifty_returns) if nifty_returns else None,
+            "portfolio_cagr":       _compound_cagr(portfolio_period_returns, self.rebalance),
+            "universe_cagr":        _compound_cagr(universe_avg_returns, self.rebalance),
+            "nifty_cagr":           _compound_cagr(nifty_returns, self.rebalance),
         }
 
         return {
@@ -5326,6 +5373,10 @@ def print_backtest_report(result: Dict[str, Any]) -> None:
     print(f"  Median forward return: {_pct(s['median_return'])}")
     print(f"  Universe avg return:   {_pct(s['universe_avg_return'])}")
     print(f"  NIFTY 50 avg return:   {_pct(s['nifty_avg_return'])}")
+    print()
+    print(f"  Portfolio CAGR (top-{p['top_n']}, equal-weight, rebalanced every {p['rebalance']} bars): {_pct(s['portfolio_cagr'])}")
+    print(f"  Universe CAGR:         {_pct(s['universe_cagr'])}")
+    print(f"  NIFTY 50 CAGR:         {_pct(s['nifty_cagr'])}")
 
 
 # =============================================================================
