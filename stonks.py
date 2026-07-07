@@ -52,6 +52,7 @@ import os
 import re
 import textwrap
 from abc import ABC, abstractmethod
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from enum import Enum
@@ -182,6 +183,57 @@ def _norm_index(index: int, n: int) -> int:
     |index| > n) and others reimplementing the same one-liner.
     """
     return index if index >= 0 else n + index
+
+
+def rolling_min_max(values: List[Optional[float]], window: int, min_valid: int = 5
+                     ) -> Tuple[List[Optional[float]], List[Optional[float]]]:
+    """
+    Rolling min/max of `values` over a trailing `window`-sized lookback
+    ending at (and including) each index, skipping None entries. Returns
+    (lo, hi) parallel lists; both stay None at an index until at least
+    `min_valid` non-None values have appeared within that index's window -
+    matching every caller's existing "not enough history yet" behaviour.
+
+    O(n) via a monotonic deque (each index enters and leaves each internal
+    deque at most once), replacing an O(n * window) per-bar list-slice-
+    and-rescan that was independently copy-pasted in MACD, ATR, ADX, and
+    AnnualizedVolatility's compute() methods. A None entry never enters
+    the deques and never counts toward min_valid - it's invisible to the
+    historical range, not a zero. Callers with their own "sentinel value"
+    concept (e.g. ADX also excluding non-positive values) must translate
+    that to None before calling; this helper only knows about None.
+    """
+    n = len(values)
+    lo: List[Optional[float]] = [None] * n
+    hi: List[Optional[float]] = [None] * n
+    min_deque = deque()   # (index, value), increasing value order
+    max_deque = deque()   # (index, value), decreasing value order
+    valid_indices = deque()  # indices of non-None values currently in window
+
+    for i, v in enumerate(values):
+        start = i - window + 1
+
+        while min_deque and min_deque[0][0] < start:
+            min_deque.popleft()
+        while max_deque and max_deque[0][0] < start:
+            max_deque.popleft()
+        while valid_indices and valid_indices[0] < start:
+            valid_indices.popleft()
+
+        if v is not None:
+            while min_deque and min_deque[-1][1] >= v:
+                min_deque.pop()
+            min_deque.append((i, v))
+            while max_deque and max_deque[-1][1] <= v:
+                max_deque.pop()
+            max_deque.append((i, v))
+            valid_indices.append(i)
+
+        if len(valid_indices) >= min_valid:
+            lo[i] = min_deque[0][1]
+            hi[i] = max_deque[0][1]
+
+    return lo, hi
 
 
 # =============================================================================
@@ -502,19 +554,9 @@ class MACD(BaseTechnicalIndicator):
                 signal[i] = sig_ema[i]
                 histogram[i] = macd_line[i] - signal[i]
         
-        # Compute ROLLING hist stats for each bar (no look-ahead)
-        # NOTE: histogram is initialized to 0.0 (never None), so warmup bars
-        # before the signal EMA settles contribute fake zeros to "valid"
-        # below. This is a real characterization-worthy quirk, not dead code
-        # removed here - see PLAN.md Phase 2 (sentinel normalization) for the
-        # actual fix, applied consistently across MACD/ADX/BollingerBands.
-        for i in range(n):
-            start = max(0, i - HIST_WINDOW + 1)
-            valid = [v for v in histogram[start:i+1] if v is not None]
-            if len(valid) >= 5:
-                hist_lo[i] = min(valid)
-                hist_hi[i] = max(valid)
-        
+        # Rolling hist stats per bar (no look-ahead) - see rolling_min_max().
+        hist_lo, hist_hi = rolling_min_max(histogram, HIST_WINDOW)
+
         return {"macd": macd_line, "signal": signal, "histogram": histogram,
                 "hist_lo": hist_lo, "hist_hi": hist_hi}
 
@@ -791,18 +833,9 @@ class ATR(BaseTechnicalIndicator):
                 if (out[i] is not None and closes[i]) else None
                 for i in range(len(out))]
         
-        # ROLLING hist stats per bar
-        hist_lo = [None] * n
-        hist_hi = [None] * n
-        for i in range(n):
-            if atr_pct[i] is None:
-                continue
-            start = max(0, i - HIST_WINDOW + 1)
-            valid = [v for v in atr_pct[start:i+1] if v is not None]
-            if len(valid) >= 5:
-                hist_lo[i] = min(valid)
-                hist_hi[i] = max(valid)
-        
+        # Rolling hist stats per bar - see rolling_min_max().
+        hist_lo, hist_hi = rolling_min_max(atr_pct, HIST_WINDOW)
+
         return {"atr_vals": out, "atr_pct": atr_pct,
                 "hist_lo": hist_lo,
                 "hist_hi": hist_hi}
@@ -1066,18 +1099,12 @@ class ADX(BaseTechnicalIndicator):
                 plus_di[idx] = pdi_list[k]
                 minus_di[idx] = mdi_list[k]
         
-        # Pre-compute ADX hist stats so classify() is O(1)
-        # Compute ROLLING hist stats for each bar
-        hist_lo = [None] * n
-        hist_hi = [None] * n
-        for i in range(n):
-            if adx_vals[i] == 0.0:
-                continue
-            start = max(0, i - HIST_WINDOW + 1)
-            valid = [v for v in adx_vals[start:i+1] if v is not None and v > 0]
-            if len(valid) >= 5:
-                hist_lo[i] = min(valid)
-                hist_hi[i] = max(valid)
+        # Pre-compute ADX hist stats so classify() is O(1). ADX's sentinel
+        # for "no data yet" is 0.0 (not None) - translate that (and any
+        # non-positive value) to None before the shared rolling helper,
+        # which only understands None as "exclude this bar".
+        adx_for_range = [v if (v is not None and v > 0) else None for v in adx_vals]
+        hist_lo, hist_hi = rolling_min_max(adx_for_range, HIST_WINDOW)
         
         return {"adx": adx_vals, "+di": plus_di, "-di": minus_di,
                 "hist_lo": hist_lo,
@@ -1594,18 +1621,9 @@ class AnnualizedVolatility(BaseTechnicalIndicator):
             var = sum((r - mu) ** 2 for r in rets) / (len(rets) - 1)
             out[i] = math.sqrt(var) * math.sqrt(252) * 100
         
-        # ROLLING hist stats per bar
-        hist_lo = [None] * n
-        hist_hi = [None] * n
-        for i in range(n):
-            if out[i] is None:
-                continue
-            start = max(0, i - HIST_WINDOW + 1)
-            valid = [v for v in out[start:i+1] if v is not None]
-            if len(valid) >= 5:
-                hist_lo[i] = min(valid)
-                hist_hi[i] = max(valid)
-        
+        # Rolling hist stats per bar - see rolling_min_max().
+        hist_lo, hist_hi = rolling_min_max(out, HIST_WINDOW)
+
         return {"vals": out,
                 "hist_lo": hist_lo,
                 "hist_hi": hist_hi}

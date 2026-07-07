@@ -1,13 +1,14 @@
 """
 True unit tests (independent expected values, not golden files) for the
 small pure-function helpers used by the scoring engine: xnorm,
-_weighted_composite, _sma_val, _rolling_ret, _ann_vol.
+_weighted_composite, rolling_min_max, _sma_val, _rolling_ret, _ann_vol.
 """
 import math
+import random
 
 import pytest
 
-from stonks import xnorm, _weighted_composite, _sma_val, _rolling_ret, _ann_vol
+from stonks import xnorm, _weighted_composite, rolling_min_max, _sma_val, _rolling_ret, _ann_vol
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +103,73 @@ def test_weighted_composite_use_raw_bypasses_normed():
     composite, coverage = _weighted_composite("x", weights, raw, normed, use_raw=True)
     assert composite == pytest.approx(42.0)
     assert coverage == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# rolling_min_max (O(n) monotonic-deque rolling window, replacing the
+# O(n*window) copy-paste previously duplicated in MACD/ATR/ADX/AnnVol)
+# ---------------------------------------------------------------------------
+
+def _naive_rolling_min_max(values, window, min_valid=5):
+    """Reference implementation matching the pre-Phase-4 per-bar
+    slice-and-rescan that was copy-pasted across 4 indicators."""
+    n = len(values)
+    lo = [None] * n
+    hi = [None] * n
+    for i in range(n):
+        start = max(0, i - window + 1)
+        valid = [v for v in values[start:i + 1] if v is not None]
+        if len(valid) >= min_valid:
+            lo[i] = min(valid)
+            hi[i] = max(valid)
+    return lo, hi
+
+
+def test_rolling_min_max_empty():
+    assert rolling_min_max([], window=10) == ([], [])
+
+
+def test_rolling_min_max_all_none():
+    lo, hi = rolling_min_max([None, None, None], window=2, min_valid=1)
+    assert lo == [None, None, None]
+    assert hi == [None, None, None]
+
+
+def test_rolling_min_max_below_min_valid_stays_none():
+    lo, hi = rolling_min_max([1.0, 2.0], window=5, min_valid=5)
+    assert lo == [None, None]
+    assert hi == [None, None]
+
+
+def test_rolling_min_max_simple_window():
+    # window=3, min_valid=1: at i=4 the trailing window is values[2:5]=[3,4,5]
+    values = [1.0, 2.0, 3.0, 4.0, 5.0]
+    lo, hi = rolling_min_max(values, window=3, min_valid=1)
+    assert lo == [1.0, 1.0, 1.0, 2.0, 3.0]
+    assert hi == [1.0, 2.0, 3.0, 4.0, 5.0]
+
+
+def test_rolling_min_max_none_entries_are_invisible_not_zero():
+    # A None in the window must be skipped entirely, not treated as 0 or
+    # counted toward min_valid - matching every existing caller's intent
+    # (a sentinel/no-data bar shouldn't distort the historical range).
+    values = [10.0, None, None, 20.0, 5.0]
+    lo, hi = rolling_min_max(values, window=5, min_valid=1)
+    assert lo == [10.0, 10.0, 10.0, 10.0, 5.0]
+    assert hi == [10.0, 10.0, 10.0, 20.0, 20.0]
+
+
+@pytest.mark.parametrize("seed", range(20))
+def test_rolling_min_max_matches_naive_on_random_data(seed):
+    rnd = random.Random(seed)
+    n = rnd.randint(0, 60)
+    window = rnd.randint(1, 25)
+    min_valid = rnd.randint(1, 6)
+    values = [
+        rnd.choice([None, None, round(rnd.uniform(-100, 100), 3)])
+        for _ in range(n)
+    ]
+    assert rolling_min_max(values, window, min_valid) == _naive_rolling_min_max(values, window, min_valid)
 
 
 # ---------------------------------------------------------------------------
