@@ -3,7 +3,7 @@
     "fa_composite": 50.1,
     "gate_adx": true,
     "gate_bb_ttm": false,
-    "gate_ichi": false,
+    "gate_ichi": true,
     "gate_mfi": true,
     "gate_mom": true,
     "gate_trend": true,

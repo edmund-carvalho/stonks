@@ -3035,8 +3035,9 @@ class Stock:
 
         gate_ichi = False
         try:
-            pos       = self.get_indicator("Ichimoku").get("cloud_pos", "")
-            gate_ichi = "Above" in pos
+            cloud_pos = self.get_indicator("Ichimoku").get("cloud_pos", [])
+            pos = cloud_pos[idx] if isinstance(cloud_pos, list) and idx < len(cloud_pos) else str(cloud_pos)
+            gate_ichi = pos is not None and "Above" in pos
         except (KeyError, TypeError):
             pass
 
